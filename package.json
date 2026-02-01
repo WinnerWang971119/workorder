@@ -1,0 +1,26 @@
+{
+  "name": "workorder",
+  "version": "0.1.0",
+  "private": true,
+  "description": "FRC Work Order System - Discord bot + web dashboard",
+  "scripts": {
+    "dev": "pnpm -r --parallel dev",
+    "build": "pnpm -r build",
+    "bot:dev": "pnpm --filter bot dev",
+    "web:dev": "pnpm --filter web dev",
+    "bot:build": "pnpm --filter bot build",
+    "web:build": "pnpm --filter web build",
+    "shared:build": "pnpm --filter shared build"
+  },
+  "keywords": [
+    "frc",
+    "first-robotics",
+    "work-order",
+    "discord-bot"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "typescript": "^5.3.3"
+  }
+}
