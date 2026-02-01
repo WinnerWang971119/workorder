@@ -5,7 +5,8 @@
   "type": "module",
   "main": "dist/index.js",
   "scripts": {
-    "dev": "node --loader ts-node/esm src/index.ts",
+    "predev": "pnpm --filter @workorder/shared build",
+    "dev": "tsx src/index.ts",
     "build": "tsc",
     "start": "node dist/index.js"
   },
@@ -17,7 +18,7 @@
   },
   "devDependencies": {
     "@types/node": "^20.10.0",
-    "ts-node": "^10.9.1",
+    "tsx": "^4.7.0",
     "typescript": "^5.3.3"
   }
 }

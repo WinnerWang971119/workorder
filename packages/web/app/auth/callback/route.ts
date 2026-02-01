@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server'
+import { createServerClient } from '@supabase/ssr'
 import { NextRequest, NextResponse } from 'next/server'
 
 export async function GET(request: NextRequest) {
@@ -16,18 +16,35 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(new URL('/login?error=no_code', request.url))
   }
 
-  try {
-    const supabase = await createClient()
-    const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code)
+  // Create redirect response first so session cookies can be set on it
+  const redirectUrl = new URL('/workorders', request.url)
+  const response = NextResponse.redirect(redirectUrl)
 
-    if (exchangeError) {
-      console.error('Session exchange error:', exchangeError)
-      return NextResponse.redirect(new URL('/login?error=exchange_failed', request.url))
+  // Build a Supabase client that reads cookies from the incoming request
+  // and writes cookies onto the redirect response
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() {
+          return request.cookies.getAll()
+        },
+        setAll(cookiesToSet) {
+          cookiesToSet.forEach(({ name, value, options }) => {
+            response.cookies.set(name, value, options)
+          })
+        },
+      },
     }
-  } catch (err) {
-    console.error('Unexpected error during auth callback:', err)
-    return NextResponse.redirect(new URL('/login?error=unexpected', request.url))
+  )
+
+  const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code)
+
+  if (exchangeError) {
+    console.error('Session exchange error:', exchangeError)
+    return NextResponse.redirect(new URL('/login?error=exchange_failed', request.url))
   }
 
-  return NextResponse.redirect(new URL('/workorders', request.url))
+  return response
 }

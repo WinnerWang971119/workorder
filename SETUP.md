@@ -28,13 +28,13 @@ workorder/
 
 1. Create a new Supabase project
 2. Navigate to the SQL Editor
-3. Copy and execute both migration files:
+3. Copy and execute both migration files: 
    - `supabase/migrations/001_initial_schema.sql`
    - `supabase/migrations/002_rls_policies.sql`
 4. Navigate to Settings > API:
-   - Copy **Project URL** → `NEXT_PUBLIC_SUPABASE_URL`
-   - Copy **anon public** key → `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-   - Copy **service_role secret** key → `SUPABASE_SERVICE_ROLE_KEY`
+   - Copy **Project URL** → `https://<your-project-ref>.supabase.co`
+   - Copy **anon public** key → `<your-supabase-anon-key>`
+   - Copy **service_role secret** key → `<your-supabase-service-role-key>`
 5. Configure Discord OAuth:
    - Go to Authentication > Providers > Discord
    - Log in with your Discord account or create one
@@ -48,10 +48,10 @@ workorder/
 2. Click "New Application" and give it a name
 3. Go to the "Bot" section and click "Add Bot"
 4. Under TOKEN, click "Copy":
-   - Save this as `DISCORD_TOKEN`
+   - Save this as your `DISCORD_TOKEN`
 5. Go to OAuth2 > General:
-   - Copy **Client ID** → `DISCORD_CLIENT_ID`
-   - Copy **Client Secret** (for bot auth, if needed)
+   - Copy **Client ID** → `<your-discord-client-id>`
+   - Copy **Client Secret** (for bot auth, if needed) → `<your-discord-client-secret>`
 6. Go to OAuth2 > URL Generator:
    - Scopes: Select `bot`
    - Permissions: `Send Messages`, `Embed Links`, `Read Message History`, `Use Slash Commands`
