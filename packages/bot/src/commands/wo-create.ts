@@ -1,5 +1,4 @@
-import { ChatInputCommandInteraction, EmbedBuilder } from 'discord.js';
-import { WorkOrderCategory } from '@workorder/shared';
+import { ChatInputCommandInteraction } from 'discord.js';
 import * as workorderService from '../services/workorder.service.js';
 import * as discordService from '../services/discord.service.js';
 import { getOrCreateUser } from '../services/user.service.js';
@@ -10,7 +9,7 @@ export async function handleCreate(interaction: ChatInputCommandInteraction): Pr
     await interaction.deferReply();
 
     const title = interaction.options.getString('title', true);
-    const category = interaction.options.getString('category', true) as WorkOrderCategory;
+    const subsystemId = interaction.options.getString('subsystem', true);
     const description = interaction.options.getString('description') || undefined;
     const priority = (interaction.options.getString('priority') || 'MEDIUM') as 'LOW' | 'MEDIUM' | 'HIGH';
 
@@ -28,7 +27,7 @@ export async function handleCreate(interaction: ChatInputCommandInteraction): Pr
 
     // Create work order using the DB user UUID
     const workOrder = await workorderService.createWorkOrder(
-      { title, description, category, priority },
+      { title, description, subsystem_id: subsystemId, priority },
       dbUser.id,
       interaction.guildId!
     );
@@ -54,13 +53,13 @@ export async function handleCreate(interaction: ChatInputCommandInteraction): Pr
       );
     }
 
-    const embed = new EmbedBuilder()
-      .setColor('#FFCC00')
-      .setTitle('Work Order Created')
-      .setDescription(`"${title}" has been created.`)
-      .addFields({ name: 'ID', value: workOrder.id });
+    // Reply with the full work order card so the creator sees all
+    // details and can immediately claim the work order via button
+    const embed = discordService.createWorkOrderEmbed(workOrder, interaction.user.username);
+    const buttons = discordService.createWorkOrderButtons(workOrder);
+    const components = buttons.components.length > 0 ? [buttons] : [];
 
-    await interaction.editReply({ embeds: [embed] });
+    await interaction.editReply({ embeds: [embed], components });
   } catch (error) {
     console.error('Error in wo-create command:', error);
     if (!interaction.replied && !interaction.deferred) {

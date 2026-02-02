@@ -1,7 +1,14 @@
 import { ChatInputCommandInteraction, EmbedBuilder } from 'discord.js';
-import { CATEGORY_LABELS } from '@workorder/shared';
+import { PRIORITY_EMOJIS, getDisplayStatus } from '@workorder/shared';
 import * as workorderService from '../services/workorder.service.js';
 import { supabase } from '../supabase.js';
+
+/**
+ * The order in which priority groups appear in the list.
+ * HIGH first so the most urgent items are always visible.
+ */
+const PRIORITY_ORDER = ['HIGH', 'MEDIUM', 'LOW'] as const;
+const MAX_DISPLAY = 15;
 
 export async function handleList(interaction: ChatInputCommandInteraction): Promise<void> {
   try {
@@ -31,29 +38,62 @@ export async function handleList(interaction: ChatInputCommandInteraction): Prom
       users?.forEach((u) => userMap.set(u.id, u.display_name));
     }
 
-    // Show top 10
-    const displayed = workOrders.slice(0, 10);
-
-    let description = '**Unfinished Work Orders:**\n\n';
-    displayed.forEach((wo, idx) => {
-      description += `**${idx + 1}.** ${wo.title} (${CATEGORY_LABELS[wo.category]})\n`;
-      description += `   ID: \`${wo.id}\`\n`;
-      description += `   Status: ${wo.status} | Priority: ${wo.priority}\n`;
-      if (wo.claimed_by_user_id) {
-        const name = userMap.get(wo.claimed_by_user_id) || 'Unknown';
-        description += `   Claimed by: ${name}\n`;
+    // Group work orders by priority so the list is scannable
+    const grouped: Record<string, typeof workOrders> = {
+      HIGH: [],
+      MEDIUM: [],
+      LOW: [],
+    };
+    workOrders.forEach((wo) => {
+      const bucket = grouped[wo.priority];
+      if (bucket) {
+        bucket.push(wo);
+      } else {
+        grouped['MEDIUM'].push(wo);
       }
-      description += '\n';
     });
 
-    if (workOrders.length > 10) {
-      description += `... and ${workOrders.length - 10} more. View all in the dashboard.`;
+    let description = '';
+    let count = 0;
+
+    for (const priority of PRIORITY_ORDER) {
+      const items = grouped[priority];
+      if (items.length === 0) continue;
+
+      const emoji = PRIORITY_EMOJIS[priority] || '';
+      description += `\n**${emoji} ${priority} PRIORITY (${items.length})**\n`;
+
+      for (const wo of items) {
+        if (count >= MAX_DISPLAY) break;
+
+        const subEmoji = wo.subsystem?.emoji || '';
+        const subLabel = wo.subsystem?.display_name || 'Unknown';
+        const status = getDisplayStatus(wo);
+
+        description += `> **${count + 1}.** ${wo.title} (${subEmoji} ${subLabel})\n`;
+        description += `>  \`${wo.id}\`\n`;
+        description += `>  ${status}`;
+        if (wo.claimed_by_user_id) {
+          const name = userMap.get(wo.claimed_by_user_id) || 'Unknown';
+          description += ` by **${name}**`;
+        }
+        description += '\n\n';
+        count++;
+      }
+
+      if (count >= MAX_DISPLAY) break;
+    }
+
+    const remaining = workOrders.length - count;
+    if (remaining > 0) {
+      description += `*... and ${remaining} more. View all in the dashboard.*`;
     }
 
     const embed = new EmbedBuilder()
-      .setColor('#FFCC00')
-      .setTitle('Work Orders')
-      .setDescription(description);
+      .setColor(0x3498DB)
+      .setTitle(`Work Orders (${workOrders.length})`)
+      .setDescription(description)
+      .setTimestamp();
 
     await interaction.editReply({ embeds: [embed] });
   } catch (error) {

@@ -1,5 +1,4 @@
-import { ChatInputCommandInteraction, EmbedBuilder } from 'discord.js';
-import { WorkOrderCategory } from '@workorder/shared';
+import { ChatInputCommandInteraction } from 'discord.js';
 import * as workorderService from '../services/workorder.service.js';
 import * as permissionService from '../services/permission.service.js';
 import * as discordService from '../services/discord.service.js';
@@ -12,9 +11,9 @@ export async function handleEdit(interaction: ChatInputCommandInteraction): Prom
     const workOrderId = interaction.options.getString('id', true);
     const newTitle = interaction.options.getString('title');
     const newDescription = interaction.options.getString('description');
-    const newCategory = interaction.options.getString('category') as WorkOrderCategory | null;
+    const newSubsystemId = interaction.options.getString('subsystem');
 
-    if (!newTitle && !newDescription && !newCategory) {
+    if (!newTitle && !newDescription && !newSubsystemId) {
       await interaction.editReply('No changes provided. Specify at least one field to update.');
       return;
     }
@@ -55,7 +54,7 @@ export async function handleEdit(interaction: ChatInputCommandInteraction): Prom
     const updates: Record<string, string> = {};
     if (newTitle) updates.title = newTitle;
     if (newDescription) updates.description = newDescription;
-    if (newCategory) updates.category = newCategory;
+    if (newSubsystemId) updates.subsystem_id = newSubsystemId;
 
     const updated = await workorderService.updateWorkOrder(workOrderId, updates, dbUser.id, interaction.guildId!);
     if (!updated) {
@@ -66,13 +65,12 @@ export async function handleEdit(interaction: ChatInputCommandInteraction): Prom
     // Update the Discord card if one was posted
     await discordService.updateWorkOrderCard(updated, interaction.client);
 
-    const embed = new EmbedBuilder()
-      .setColor('#FFCC00')
-      .setTitle('Work Order Updated')
-      .setDescription(`Work order has been updated.`)
-      .addFields({ name: 'ID', value: workOrder.id });
+    // Show the updated card so the user sees the result
+    const embed = discordService.createWorkOrderEmbed(updated);
+    const buttons = discordService.createWorkOrderButtons(updated);
+    const components = buttons.components.length > 0 ? [buttons] : [];
 
-    await interaction.editReply({ embeds: [embed] });
+    await interaction.editReply({ embeds: [embed], components });
   } catch (error) {
     console.error('Error in wo-edit command:', error);
     if (!interaction.replied && !interaction.deferred) {

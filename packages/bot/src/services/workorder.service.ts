@@ -1,6 +1,9 @@
-import { WorkOrder, WorkOrderCategory, WorkOrderStatus, AuditAction } from '@workorder/shared';
+import { WorkOrder, WorkOrderStatus, AuditAction } from '@workorder/shared';
 import { supabase } from '../supabase.js';
 import { logAction } from './audit.service.js';
+
+/** Select expression that joins subsystem data onto a work order row */
+const WO_SELECT = '*, subsystem:subsystems(*)';
 
 /**
  * Create a new work order
@@ -9,7 +12,7 @@ export async function createWorkOrder(
   data: {
     title: string;
     description?: string;
-    category: WorkOrderCategory;
+    subsystem_id: string;
     priority?: 'LOW' | 'MEDIUM' | 'HIGH';
   },
   createdByUserId: string,
@@ -21,12 +24,12 @@ export async function createWorkOrder(
       .insert({
         title: data.title,
         description: data.description || '',
-        category: data.category,
+        subsystem_id: data.subsystem_id,
         priority: data.priority || 'MEDIUM',
         created_by_user_id: createdByUserId,
         discord_guild_id: guildId,
       })
-      .select()
+      .select(WO_SELECT)
       .single();
 
     if (error) {
@@ -38,7 +41,7 @@ export async function createWorkOrder(
     if (workOrder) {
       await logAction(guildId, workOrder.id, createdByUserId, AuditAction.CREATE, {
         title: data.title,
-        category: data.category,
+        subsystem_id: data.subsystem_id,
       });
     }
 
@@ -59,11 +62,14 @@ export async function updateWorkOrder(
   guildId: string
 ): Promise<WorkOrder | null> {
   try {
+    // Strip the joined subsystem object before sending to Supabase
+    const { subsystem: _ignored, ...cleanUpdates } = updates as any;
+
     const { data: workOrder, error } = await supabase
       .from('work_orders')
-      .update(updates)
+      .update(cleanUpdates)
       .eq('id', id)
-      .select()
+      .select(WO_SELECT)
       .single();
 
     if (error) {
@@ -73,7 +79,7 @@ export async function updateWorkOrder(
 
     // Log the action
     if (workOrder) {
-      await logAction(guildId, id, actorId, AuditAction.EDIT, updates);
+      await logAction(guildId, id, actorId, AuditAction.EDIT, cleanUpdates);
     }
 
     return workOrder;
@@ -123,7 +129,7 @@ export async function assignWorkOrder(
       .from('work_orders')
       .update({ assigned_to_user_id: assigneeId })
       .eq('id', id)
-      .select()
+      .select(WO_SELECT)
       .single();
 
     if (error) {
@@ -158,7 +164,7 @@ export async function claimWorkOrder(
       .from('work_orders')
       .update({ claimed_by_user_id: userId })
       .eq('id', id)
-      .select()
+      .select(WO_SELECT)
       .single();
 
     if (error) {
@@ -191,7 +197,7 @@ export async function unclaimWorkOrder(
       .from('work_orders')
       .update({ claimed_by_user_id: null })
       .eq('id', id)
-      .select()
+      .select(WO_SELECT)
       .single();
 
     if (error) {
@@ -212,13 +218,14 @@ export async function unclaimWorkOrder(
 }
 
 /**
- * List unfinished work orders for a guild
+ * List unfinished work orders for a guild.
+ * Joins subsystem data so callers have display_name and emoji.
  */
 export async function listUnfinishedWorkOrders(guildId: string): Promise<WorkOrder[]> {
   try {
     const { data: workOrders, error } = await supabase
       .from('work_orders')
-      .select('*')
+      .select(WO_SELECT)
       .eq('discord_guild_id', guildId)
       .eq('status', WorkOrderStatus.OPEN)
       .eq('is_deleted', false)
@@ -237,13 +244,13 @@ export async function listUnfinishedWorkOrders(guildId: string): Promise<WorkOrd
 }
 
 /**
- * Get a work order by ID
+ * Get a work order by ID, including joined subsystem data.
  */
 export async function getWorkOrderById(id: string): Promise<WorkOrder | null> {
   try {
     const { data: workOrder, error } = await supabase
       .from('work_orders')
-      .select('*')
+      .select(WO_SELECT)
       .eq('id', id)
       .single();
 

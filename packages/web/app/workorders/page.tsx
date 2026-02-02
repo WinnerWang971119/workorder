@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { WorkOrder, User, CATEGORY_LABELS, STATUS_LABELS, PRIORITY_LABELS } from '@workorder/shared'
+import { WorkOrder, User, Subsystem, STATUS_LABELS, PRIORITY_LABELS } from '@workorder/shared'
 import {
   Table,
   TableBody,
@@ -42,7 +42,7 @@ export default function WorkOrdersPage() {
 
       const { data: orders, error } = await supabase
         .from('work_orders')
-        .select('*')
+        .select('*, subsystem:subsystems(*)')
         .eq('status', 'OPEN')
         .eq('is_deleted', false)
         .order('created_at', { ascending: false })
@@ -137,7 +137,7 @@ export default function WorkOrdersPage() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Title</TableHead>
-                    <TableHead>Category</TableHead>
+                    <TableHead>Subsystem</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Priority</TableHead>
                     <TableHead>Created By</TableHead>
@@ -151,7 +151,9 @@ export default function WorkOrdersPage() {
                   {workOrders.map((order) => (
                     <TableRow key={order.id}>
                       <TableCell className="font-medium">{order.title}</TableCell>
-                      <TableCell>{CATEGORY_LABELS[order.category]}</TableCell>
+                      <TableCell>
+                        {order.subsystem ? `${order.subsystem.emoji} ${order.subsystem.display_name}` : '-'}
+                      </TableCell>
                       <TableCell>
                         <Badge variant="default">{STATUS_LABELS[order.status]}</Badge>
                       </TableCell>

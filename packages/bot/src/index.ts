@@ -7,10 +7,42 @@ import { handleAssign } from './commands/wo-assign.js';
 import { handleClaim } from './commands/wo-claim.js';
 import { handleUnclaim } from './commands/wo-unclaim.js';
 import { handleList } from './commands/wo-list.js';
+import { handleFinish } from './commands/wo-finish.js';
 import { handleClaimButton } from './buttons/claim-button.js';
 import { handleUnclaimButton } from './buttons/unclaim-button.js';
 import { handleMarkDoneButton } from './buttons/mark-done-button.js';
-import { ChatInputCommandInteraction, ButtonInteraction } from 'discord.js';
+import * as subsystemService from './services/subsystem.service.js';
+import { ChatInputCommandInteraction, ButtonInteraction, AutocompleteInteraction } from 'discord.js';
+
+/**
+ * Handle autocomplete requests for the "subsystem" option.
+ * Fetches all subsystems for the guild and filters by the
+ * user's current typed text.
+ */
+async function handleSubsystemAutocomplete(interaction: AutocompleteInteraction): Promise<void> {
+  const guildId = interaction.guildId;
+  if (!guildId) {
+    await interaction.respond([]);
+    return;
+  }
+
+  const subsystems = await subsystemService.getSubsystemsForGuild(guildId);
+  const focusedValue = interaction.options.getFocused().toLowerCase();
+
+  const filtered = subsystems
+    .filter((s) =>
+      s.name.toLowerCase().includes(focusedValue) ||
+      s.display_name.toLowerCase().includes(focusedValue)
+    )
+    .slice(0, 25); // Discord caps autocomplete at 25 results
+
+  await interaction.respond(
+    filtered.map((s) => ({
+      name: `${s.emoji} ${s.display_name}`,
+      value: s.id,
+    }))
+  );
+}
 
 /**
  * Main entry point for the Discord bot
@@ -34,8 +66,22 @@ async function main(): Promise<void> {
       await registerCommands(client);
     });
 
-    // Handle slash commands
+    // Handle all interaction types (commands, buttons, autocomplete)
     client.on('interactionCreate', async (interaction) => {
+      // --- Autocomplete (subsystem search) ---
+      if (interaction.isAutocomplete()) {
+        try {
+          const focused = interaction.options.getFocused(true);
+          if (focused.name === 'subsystem') {
+            await handleSubsystemAutocomplete(interaction);
+          }
+        } catch (error) {
+          console.error('Error handling autocomplete:', error);
+        }
+        return;
+      }
+
+      // --- Slash commands ---
       if (interaction.isChatInputCommand()) {
         const cmd = interaction as ChatInputCommandInteraction;
 
@@ -62,6 +108,9 @@ async function main(): Promise<void> {
             case 'wo-list':
               await handleList(cmd);
               break;
+            case 'wo-finish':
+              await handleFinish(cmd);
+              break;
             default:
               await cmd.reply('Unknown command');
           }
@@ -76,6 +125,7 @@ async function main(): Promise<void> {
         }
       }
 
+      // --- Button interactions ---
       if (interaction.isButton()) {
         const btn = interaction as ButtonInteraction;
 

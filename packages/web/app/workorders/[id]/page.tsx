@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { WorkOrder, AuditLog, CATEGORY_LABELS, STATUS_LABELS, ACTION_LABELS, PRIORITY_LABELS } from '@workorder/shared'
+import { WorkOrder, AuditLog, STATUS_LABELS, ACTION_LABELS, PRIORITY_LABELS } from '@workorder/shared'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { formatDate } from '@/lib/utils'
@@ -41,7 +41,7 @@ export default function WorkOrderDetailPage() {
         // Fetch work order
         const { data: order, error: orderError } = await supabase
           .from('work_orders')
-          .select('*')
+          .select('*, subsystem:subsystems(*)')
           .eq('id', workOrderId)
           .single()
 
@@ -131,8 +131,12 @@ export default function WorkOrderDetailPage() {
                 <Badge>{STATUS_LABELS[workOrder.status]}</Badge>
               </div>
               <div>
-                <p className="text-sm text-gray-600">Category</p>
-                <p>{CATEGORY_LABELS[workOrder.category]}</p>
+                <p className="text-sm text-gray-600">Subsystem</p>
+                <p>
+                  {workOrder.subsystem
+                    ? `${workOrder.subsystem.emoji} ${workOrder.subsystem.display_name}`
+                    : '-'}
+                </p>
               </div>
               <div>
                 <p className="text-sm text-gray-600">Priority</p>

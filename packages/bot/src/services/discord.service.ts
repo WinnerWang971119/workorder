@@ -7,11 +7,20 @@ import {
   Client,
   Message,
 } from 'discord.js';
-import { WorkOrder, WorkOrderStatus, CATEGORY_LABELS, STATUS_LABELS, STATUS_COLORS } from '@workorder/shared';
+import {
+  WorkOrder,
+  WorkOrderStatus,
+  PRIORITY_EMOJIS,
+  PRIORITY_LABELS,
+  getDisplayStatus,
+  getEmbedColor,
+} from '@workorder/shared';
 import { supabase } from '../supabase.js';
 
 /**
- * Create a Discord embed for a work order card
+ * Create a Discord embed for a work order card.
+ * Color reflects priority for open items and turns green when finished.
+ * Subsystem display_name and emoji come from the joined subsystem row.
  */
 export function createWorkOrderEmbed(
   workOrder: WorkOrder,
@@ -19,14 +28,20 @@ export function createWorkOrderEmbed(
   claimerName?: string,
   assigneeName?: string
 ): EmbedBuilder {
+  // Use subsystem data when available, fall back to generic defaults
+  const subsystemEmoji = workOrder.subsystem?.emoji || '';
+  const subsystemLabel = workOrder.subsystem?.display_name || 'Unknown';
+  const priorityEmoji = PRIORITY_EMOJIS[workOrder.priority] || '';
+  const priorityLabel = PRIORITY_LABELS[workOrder.priority] || workOrder.priority;
+
   const embed = new EmbedBuilder()
-    .setColor(STATUS_COLORS[workOrder.status])
-    .setTitle(`[${CATEGORY_LABELS[workOrder.category]}] ${workOrder.title}`)
-    .setDescription(workOrder.description || 'No description provided')
+    .setColor(getEmbedColor(workOrder))
+    .setTitle(`${subsystemEmoji} [${subsystemLabel}] ${workOrder.title}`)
+    .setDescription(workOrder.description || '*No description provided*')
     .addFields(
-      { name: 'Status', value: STATUS_LABELS[workOrder.status], inline: true },
-      { name: 'Priority', value: workOrder.priority, inline: true },
-      { name: 'Category', value: CATEGORY_LABELS[workOrder.category], inline: true }
+      { name: 'Status', value: getDisplayStatus(workOrder), inline: true },
+      { name: 'Priority', value: `${priorityEmoji} ${priorityLabel}`, inline: true },
+      { name: 'Subsystem', value: `${subsystemEmoji} ${subsystemLabel}`, inline: true }
     );
 
   if (creatorName) {
@@ -43,7 +58,7 @@ export function createWorkOrderEmbed(
 
   // Show removal state clearly
   if (workOrder.is_deleted) {
-    embed.setColor('#FF0000');
+    embed.setColor(0xFF0000);
     embed.addFields({ name: 'Removed', value: 'This work order has been removed by an admin.' });
   }
 

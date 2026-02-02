@@ -3,7 +3,11 @@
     "allow": [
       "Bash(tree:*)",
       "Bash(git config:*)",
-      "Bash(grep:*)"
+      "Bash(grep:*)",
+      "Bash(ls:*)",
+      "Bash(pnpm shared:build:*)",
+      "Bash(pnpm web:build:*)",
+      "Bash(pnpm build)"
     ]
   }
 }

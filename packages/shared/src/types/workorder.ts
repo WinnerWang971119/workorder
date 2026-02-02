@@ -1,5 +1,7 @@
 /**
- * Work Order category enumeration
+ * Work Order category enumeration.
+ * Kept for backward-compatibility with code that references these
+ * values. New work orders use subsystem_id instead.
  */
 export enum WorkOrderCategory {
   MECH = 'MECH',
@@ -53,13 +55,31 @@ export interface GuildConfig {
 }
 
 /**
- * Work Order entity
+ * A subsystem is a guild-scoped category that admins can
+ * create, rename, reorder, and delete from the dashboard.
+ */
+export interface Subsystem {
+  id: string;
+  guild_id: string;
+  name: string;
+  display_name: string;
+  emoji: string;
+  color: string;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
+/**
+ * Work Order entity.
+ * After the subsystems migration the `category` column is removed
+ * from the database and replaced by `subsystem_id`.
  */
 export interface WorkOrder {
   id: string;
   title: string;
   description: string;
-  category: WorkOrderCategory;
+  subsystem_id: string;
   status: WorkOrderStatus;
   priority: 'LOW' | 'MEDIUM' | 'HIGH';
   created_by_user_id: string;
@@ -72,6 +92,9 @@ export interface WorkOrder {
   is_deleted: boolean;
   created_at: string;
   updated_at: string;
+
+  /** Populated via a Supabase join when needed */
+  subsystem?: Subsystem;
 }
 
 /**

@@ -1,14 +1,5 @@
-import { WorkOrderCategory, WorkOrderStatus, AuditAction } from './types/workorder.js';
-
-/**
- * Category labels for display
- */
-export const CATEGORY_LABELS: Record<WorkOrderCategory, string> = {
-  [WorkOrderCategory.MECH]: 'Mechanical',
-  [WorkOrderCategory.ELECTRICAL]: 'Electrical',
-  [WorkOrderCategory.SOFTWARE]: 'Software',
-  [WorkOrderCategory.GENERAL]: 'General',
-};
+import { WorkOrderStatus, AuditAction } from './types/workorder.js';
+import type { WorkOrder } from './types/workorder.js';
 
 /**
  * Status labels for display
@@ -22,8 +13,8 @@ export const STATUS_LABELS: Record<WorkOrderStatus, string> = {
  * Status colors for UI display
  */
 export const STATUS_COLORS: Record<WorkOrderStatus, string> = {
-  [WorkOrderStatus.OPEN]: '#FFCC00', // Yellow
-  [WorkOrderStatus.DONE]: '#00AA00', // Green
+  [WorkOrderStatus.OPEN]: '#FFCC00',
+  [WorkOrderStatus.DONE]: '#00AA00',
 };
 
 /**
@@ -39,6 +30,46 @@ export const PRIORITY_LABELS: Record<string, string> = {
   MEDIUM: 'Medium',
   HIGH: 'High',
 };
+
+/**
+ * Priority emojis for visual display in Discord
+ */
+export const PRIORITY_EMOJIS: Record<string, string> = {
+  LOW: '\uD83D\uDFE2',
+  MEDIUM: '\uD83D\uDFE1',
+  HIGH: '\uD83D\uDD34',
+};
+
+/**
+ * Priority-based embed colors for more nuanced visual feedback
+ */
+export const PRIORITY_COLORS: Record<string, number> = {
+  LOW: 0x95E1D3,
+  MEDIUM: 0xFFD93D,
+  HIGH: 0xFF6B6B,
+};
+
+/**
+ * Derive a human-friendly display status from work order state.
+ * Uses claimed_by_user_id and status fields to determine one of
+ * three display states: Unclaimed, Claimed, or Finished.
+ */
+export function getDisplayStatus(workOrder: WorkOrder): string {
+  if (workOrder.status === WorkOrderStatus.DONE) return '\u2705 Finished';
+  if (workOrder.claimed_by_user_id) return '\uD83D\uDC64 Claimed';
+  return '\uD83D\uDCCB Unclaimed';
+}
+
+/**
+ * Pick an embed color based on work order state.
+ * Finished work orders are always green. Otherwise the color
+ * reflects priority so urgent items stand out visually.
+ */
+export function getEmbedColor(workOrder: WorkOrder): number {
+  if (workOrder.status === WorkOrderStatus.DONE) return 0x00AA00;
+  if (workOrder.claimed_by_user_id) return 0x3498DB;
+  return PRIORITY_COLORS[workOrder.priority] ?? 0xFFCC00;
+}
 
 /**
  * Audit action labels for display

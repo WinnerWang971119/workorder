@@ -1,5 +1,4 @@
 import { Client, GatewayIntentBits, Collection, SlashCommandBuilder } from 'discord.js';
-import { config } from './config.js';
 
 /**
  * Initialize Discord client
@@ -21,7 +20,9 @@ export function createClient(): Client {
 }
 
 /**
- * Register slash commands with Discord API
+ * Register slash commands with Discord API.
+ * The "subsystem" option uses autocomplete so choices are loaded
+ * dynamically from the database rather than being hardcoded.
  */
 export async function registerCommands(client: Client): Promise<void> {
   const commands = [
@@ -33,15 +34,10 @@ export async function registerCommands(client: Client): Promise<void> {
       )
       .addStringOption((option) =>
         option
-          .setName('category')
-          .setDescription('Work order category')
+          .setName('subsystem')
+          .setDescription('Subsystem (start typing to search)')
           .setRequired(true)
-          .addChoices(
-            { name: 'Mechanical', value: 'MECH' },
-            { name: 'Electrical', value: 'ELECTRICAL' },
-            { name: 'Software', value: 'SOFTWARE' },
-            { name: 'General', value: 'GENERAL' }
-          )
+          .setAutocomplete(true)
       )
       .addStringOption((option) =>
         option.setName('description').setDescription('Work order description').setRequired(false)
@@ -69,15 +65,10 @@ export async function registerCommands(client: Client): Promise<void> {
       )
       .addStringOption((option) =>
         option
-          .setName('category')
-          .setDescription('New category')
+          .setName('subsystem')
+          .setDescription('New subsystem (start typing to search)')
           .setRequired(false)
-          .addChoices(
-            { name: 'Mechanical', value: 'MECH' },
-            { name: 'Electrical', value: 'ELECTRICAL' },
-            { name: 'Software', value: 'SOFTWARE' },
-            { name: 'General', value: 'GENERAL' }
-          )
+          .setAutocomplete(true)
       ),
     new SlashCommandBuilder()
       .setName('wo-remove')
@@ -99,6 +90,10 @@ export async function registerCommands(client: Client): Promise<void> {
     new SlashCommandBuilder()
       .setName('wo-list')
       .setDescription('List unfinished work orders for this server'),
+    new SlashCommandBuilder()
+      .setName('wo-finish')
+      .setDescription('Mark a work order as finished (claimer or admin)')
+      .addStringOption((option) => option.setName('id').setDescription('Work order ID').setRequired(true)),
   ];
 
   try {
