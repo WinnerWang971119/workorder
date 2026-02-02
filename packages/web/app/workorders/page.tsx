@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { WorkOrder, User, Subsystem, STATUS_LABELS, PRIORITY_LABELS } from '@workorder/shared'
+import { WorkOrder, STATUS_LABELS, PRIORITY_LABELS } from '@workorder/shared'
 import {
   Table,
   TableBody,
@@ -14,6 +14,7 @@ import {
 } from '@/components/ui/table'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { ThemeToggle } from '@/components/theme-toggle'
 import { formatDate } from '@/lib/utils'
 import Link from 'next/link'
 
@@ -93,23 +94,33 @@ export default function WorkOrdersPage() {
 
   const resolveUser = (userId: string | null): string => {
     if (!userId) return '-'
-    return userMap.get(userId) || userId.slice(0, 8) + '...'
+    return userMap.get(userId) || 'Unknown User'
   }
 
   if (loading) {
-    return <div className="p-8">Loading...</div>
+    return (
+      <div className="min-h-screen bg-background">
+        <div className="p-8">
+          <div className="animate-pulse space-y-4">
+            <div className="h-8 bg-muted rounded w-1/4" />
+            <div className="h-64 bg-muted rounded" />
+          </div>
+        </div>
+      </div>
+    )
   }
 
   return (
-    <div className="min-h-screen bg-white">
-      <header className="border-b border-gray-200 bg-white px-8 py-4">
+    <div className="min-h-screen bg-background">
+      <header className="border-b border-border bg-background px-8 py-4">
         <div className="flex justify-between items-center">
-          <h1 className="text-3xl font-bold text-gray-900">Work Orders</h1>
-          <div className="flex gap-4">
-            <Button onClick={() => router.push('/usage')} variant="outline">
+          <h1 className="text-2xl font-bold text-foreground">Work Orders</h1>
+          <div className="flex items-center gap-2">
+            <ThemeToggle />
+            <Button onClick={() => router.push('/usage')} variant="outline" size="sm">
               Usage Stats
             </Button>
-            <Button onClick={() => router.push('/admin')} variant="outline">
+            <Button onClick={() => router.push('/admin')} variant="outline" size="sm">
               Admin
             </Button>
             <Button
@@ -118,6 +129,7 @@ export default function WorkOrdersPage() {
                 router.push('/login')
               }}
               variant="destructive"
+              size="sm"
             >
               Logout
             </Button>
@@ -128,14 +140,14 @@ export default function WorkOrdersPage() {
       <main className="p-8">
         {workOrders.length === 0 ? (
           <div className="text-center py-12">
-            <p className="text-gray-600">No open work orders</p>
+            <p className="text-muted-foreground">No open work orders</p>
           </div>
         ) : (
           <>
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto border border-border rounded-lg">
               <Table>
                 <TableHeader>
-                  <TableRow>
+                  <TableRow className="hover:bg-transparent">
                     <TableHead>Title</TableHead>
                     <TableHead>Subsystem</TableHead>
                     <TableHead>Status</TableHead>
@@ -144,15 +156,25 @@ export default function WorkOrdersPage() {
                     <TableHead>Assigned To</TableHead>
                     <TableHead>Claimed By</TableHead>
                     <TableHead>Created</TableHead>
-                    <TableHead>Actions</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {workOrders.map((order) => (
-                    <TableRow key={order.id}>
-                      <TableCell className="font-medium">{order.title}</TableCell>
+                    <TableRow key={order.id} className="hover:bg-muted/50">
+                      <TableCell className="font-medium text-foreground">{order.title}</TableCell>
                       <TableCell>
-                        {order.subsystem ? `${order.subsystem.emoji} ${order.subsystem.display_name}` : '-'}
+                        {order.subsystem ? (
+                          <span className="inline-flex items-center gap-1.5">
+                            <span
+                              className="w-2.5 h-2.5 rounded-full inline-block flex-shrink-0"
+                              style={{ backgroundColor: order.subsystem.color }}
+                            />
+                            <span>{order.subsystem.display_name}</span>
+                          </span>
+                        ) : (
+                          '-'
+                        )}
                       </TableCell>
                       <TableCell>
                         <Badge variant="default">{STATUS_LABELS[order.status]}</Badge>
@@ -161,8 +183,8 @@ export default function WorkOrdersPage() {
                       <TableCell>{resolveUser(order.created_by_user_id)}</TableCell>
                       <TableCell>{resolveUser(order.assigned_to_user_id)}</TableCell>
                       <TableCell>{resolveUser(order.claimed_by_user_id)}</TableCell>
-                      <TableCell>{formatDate(order.created_at)}</TableCell>
-                      <TableCell>
+                      <TableCell className="text-sm">{formatDate(order.created_at)}</TableCell>
+                      <TableCell className="text-right">
                         <Link href={`/workorders/${order.id}`}>
                           <Button size="sm" variant="outline">View</Button>
                         </Link>
@@ -177,14 +199,16 @@ export default function WorkOrdersPage() {
             <div className="flex justify-between items-center mt-4">
               <Button
                 variant="outline"
+                size="sm"
                 disabled={page === 0}
                 onClick={() => setPage((p) => Math.max(0, p - 1))}
               >
                 Previous
               </Button>
-              <span className="text-sm text-gray-600">Page {page + 1}</span>
+              <span className="text-sm text-muted-foreground">Page {page + 1}</span>
               <Button
                 variant="outline"
+                size="sm"
                 disabled={!hasMore}
                 onClick={() => setPage((p) => p + 1)}
               >

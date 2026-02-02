@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
+import { ThemeToggle } from '@/components/theme-toggle'
 
 interface Subsystem {
   id: string
@@ -106,7 +107,6 @@ export default function AdminPage() {
         setMessage({ text: 'Failed to save configuration.', type: 'error' })
       } else {
         setMessage({ text: 'Configuration saved successfully.', type: 'success' })
-        // Reload subsystems in case guild ID changed
         await loadSubsystems(guildId.trim())
       }
     } catch (error) {
@@ -209,7 +209,6 @@ export default function AdminPage() {
     setMessage(null)
     const { error } = await supabase.from('subsystems').delete().eq('id', id)
     if (error) {
-      // Most likely a foreign key constraint because work orders reference it
       setMessage({
         text: 'Cannot delete: this subsystem is in use by existing work orders. Rename it instead.',
         type: 'error',
@@ -226,7 +225,6 @@ export default function AdminPage() {
     const swapIdx = direction === 'up' ? idx - 1 : idx + 1
     if (swapIdx < 0 || swapIdx >= subsystems.length) return
 
-    // Swap sort_order values between the two items
     const a = subsystems[idx]
     const b = subsystems[swapIdx]
 
@@ -239,17 +237,29 @@ export default function AdminPage() {
   }
 
   if (loading) {
-    return <div className="p-8">Loading...</div>
+    return (
+      <div className="min-h-screen bg-background">
+        <div className="p-8">
+          <div className="animate-pulse space-y-4">
+            <div className="h-8 bg-muted rounded w-1/4" />
+            <div className="h-64 bg-muted rounded" />
+          </div>
+        </div>
+      </div>
+    )
   }
 
   return (
-    <div className="min-h-screen bg-white">
-      <header className="border-b border-gray-200 bg-white px-8 py-4">
+    <div className="min-h-screen bg-background">
+      <header className="border-b border-border bg-background px-8 py-4">
         <div className="flex justify-between items-center">
-          <h1 className="text-3xl font-bold text-gray-900">Admin Settings</h1>
-          <Button onClick={() => router.push('/workorders')} variant="outline">
-            Back
-          </Button>
+          <h1 className="text-2xl font-bold text-foreground">Admin Settings</h1>
+          <div className="flex items-center gap-2">
+            <ThemeToggle />
+            <Button onClick={() => router.push('/workorders')} variant="outline" size="sm">
+              Back
+            </Button>
+          </div>
         </div>
       </header>
 
@@ -261,8 +271,8 @@ export default function AdminPage() {
             <div
               className={`p-3 rounded-lg text-sm ${
                 message.type === 'success'
-                  ? 'bg-green-50 text-green-800 border border-green-200'
-                  : 'bg-red-50 text-red-800 border border-red-200'
+                  ? 'bg-green-500/10 text-green-700 dark:text-green-400 border border-green-500/20'
+                  : 'bg-red-500/10 text-red-700 dark:text-red-400 border border-red-500/20'
               }`}
             >
               {message.text}
@@ -270,11 +280,11 @@ export default function AdminPage() {
           )}
 
           {/* ---- Guild Configuration ---- */}
-          <div className="border border-gray-200 rounded-lg p-6 space-y-6">
-            <h2 className="text-xl font-semibold">Guild Configuration</h2>
+          <div className="border border-border rounded-lg p-6 space-y-6 bg-card">
+            <h2 className="text-lg font-semibold text-foreground">Guild Configuration</h2>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-muted-foreground mb-2">
                 Guild ID (Discord Server ID)
               </label>
               <input
@@ -282,12 +292,12 @@ export default function AdminPage() {
                 value={guildId}
                 onChange={(e) => setGuildId(e.target.value)}
                 placeholder="e.g. 1234567890123456789"
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                className="w-full px-4 py-2 border border-input rounded-lg bg-background text-foreground focus:ring-2 focus:ring-ring focus:border-transparent"
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-muted-foreground mb-2">
                 Admin Role IDs (comma-separated)
               </label>
               <input
@@ -295,15 +305,15 @@ export default function AdminPage() {
                 value={adminRoles}
                 onChange={(e) => setAdminRoles(e.target.value)}
                 placeholder="e.g. 111111111, 222222222"
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                className="w-full px-4 py-2 border border-input rounded-lg bg-background text-foreground focus:ring-2 focus:ring-ring focus:border-transparent"
               />
-              <p className="text-xs text-gray-500 mt-1">
+              <p className="text-xs text-muted-foreground mt-1">
                 Discord role IDs that grant admin permissions in the bot.
               </p>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-muted-foreground mb-2">
                 Member Role IDs (comma-separated)
               </label>
               <input
@@ -311,15 +321,15 @@ export default function AdminPage() {
                 value={memberRoles}
                 onChange={(e) => setMemberRoles(e.target.value)}
                 placeholder="e.g. 333333333, 444444444"
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                className="w-full px-4 py-2 border border-input rounded-lg bg-background text-foreground focus:ring-2 focus:ring-ring focus:border-transparent"
               />
-              <p className="text-xs text-gray-500 mt-1">
+              <p className="text-xs text-muted-foreground mt-1">
                 Discord role IDs that grant member permissions in the bot.
               </p>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-muted-foreground mb-2">
                 Work Orders Channel ID
               </label>
               <input
@@ -327,9 +337,9 @@ export default function AdminPage() {
                 value={channelId}
                 onChange={(e) => setChannelId(e.target.value)}
                 placeholder="e.g. 555555555555555555"
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                className="w-full px-4 py-2 border border-input rounded-lg bg-background text-foreground focus:ring-2 focus:ring-ring focus:border-transparent"
               />
-              <p className="text-xs text-gray-500 mt-1">
+              <p className="text-xs text-muted-foreground mt-1">
                 The Discord channel where work order cards will be posted.
               </p>
             </div>
@@ -340,11 +350,11 @@ export default function AdminPage() {
           </div>
 
           {/* ---- Subsystems Management ---- */}
-          <div className="border border-gray-200 rounded-lg p-6 space-y-6">
+          <div className="border border-border rounded-lg p-6 space-y-6 bg-card">
             <div className="flex justify-between items-center">
               <div>
-                <h2 className="text-xl font-semibold">Subsystems</h2>
-                <p className="text-sm text-gray-500 mt-1">
+                <h2 className="text-lg font-semibold text-foreground">Subsystems</h2>
+                <p className="text-sm text-muted-foreground mt-1">
                   Manage the subsystem categories that appear in the Discord bot.
                 </p>
               </div>
@@ -354,7 +364,7 @@ export default function AdminPage() {
             </div>
 
             {!guildId && (
-              <p className="text-sm text-gray-500">Save a Guild ID above to manage subsystems.</p>
+              <p className="text-sm text-muted-foreground">Save a Guild ID above to manage subsystems.</p>
             )}
 
             {/* Subsystem list */}
@@ -363,24 +373,23 @@ export default function AdminPage() {
                 {subsystems.map((sub, idx) => (
                   <div
                     key={sub.id}
-                    className="flex items-center justify-between border border-gray-200 rounded-lg p-4"
+                    className="flex items-center justify-between border border-border rounded-lg p-4 bg-background"
                   >
                     <div className="flex items-center gap-3">
                       <div
                         className="w-4 h-4 rounded-full flex-shrink-0"
                         style={{ backgroundColor: sub.color }}
                       />
-                      <span className="text-xl flex-shrink-0">{sub.emoji}</span>
                       <div>
-                        <div className="font-medium text-gray-900">{sub.display_name}</div>
-                        <div className="text-xs text-gray-400 font-mono">{sub.name}</div>
+                        <div className="font-medium text-foreground">{sub.display_name}</div>
+                        <div className="text-xs text-muted-foreground font-mono">{sub.name}</div>
                       </div>
                     </div>
                     <div className="flex items-center gap-1">
                       <button
                         onClick={() => moveSubsystem(sub.id, 'up')}
                         disabled={idx === 0}
-                        className="px-2 py-1 text-gray-400 hover:text-gray-700 disabled:opacity-30"
+                        className="px-2 py-1 text-muted-foreground hover:text-foreground disabled:opacity-30"
                         title="Move up"
                       >
                         &uarr;
@@ -388,7 +397,7 @@ export default function AdminPage() {
                       <button
                         onClick={() => moveSubsystem(sub.id, 'down')}
                         disabled={idx === subsystems.length - 1}
-                        className="px-2 py-1 text-gray-400 hover:text-gray-700 disabled:opacity-30"
+                        className="px-2 py-1 text-muted-foreground hover:text-foreground disabled:opacity-30"
                         title="Move down"
                       >
                         &darr;
@@ -406,21 +415,21 @@ export default function AdminPage() {
             )}
 
             {guildId && subsystems.length === 0 && !showForm && (
-              <p className="text-sm text-gray-500">
+              <p className="text-sm text-muted-foreground">
                 No subsystems configured yet. Click &quot;Add Subsystem&quot; to create one.
               </p>
             )}
 
             {/* Create / Edit form */}
             {showForm && (
-              <div className="border border-blue-200 bg-blue-50 rounded-lg p-4 space-y-4">
-                <h3 className="font-medium text-gray-900">
+              <div className="border border-border bg-muted/50 rounded-lg p-4 space-y-4">
+                <h3 className="font-medium text-foreground">
                   {editingId ? 'Edit Subsystem' : 'New Subsystem'}
                 </h3>
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="block text-sm font-medium text-muted-foreground mb-1">
                       Internal Name
                     </label>
                     <input
@@ -428,12 +437,12 @@ export default function AdminPage() {
                       value={formData.name}
                       onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                       placeholder="e.g. DRIVETRAIN"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                      className="w-full px-3 py-2 border border-input rounded-lg text-sm bg-background text-foreground"
                     />
-                    <p className="text-xs text-gray-400 mt-1">Stored as uppercase. Must be unique.</p>
+                    <p className="text-xs text-muted-foreground mt-1">Stored as uppercase. Must be unique.</p>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="block text-sm font-medium text-muted-foreground mb-1">
                       Display Name
                     </label>
                     <input
@@ -441,11 +450,11 @@ export default function AdminPage() {
                       value={formData.display_name}
                       onChange={(e) => setFormData({ ...formData, display_name: e.target.value })}
                       placeholder="e.g. Drive Train"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                      className="w-full px-3 py-2 border border-input rounded-lg text-sm bg-background text-foreground"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="block text-sm font-medium text-muted-foreground mb-1">
                       Emoji
                     </label>
                     <input
@@ -453,11 +462,11 @@ export default function AdminPage() {
                       value={formData.emoji}
                       onChange={(e) => setFormData({ ...formData, emoji: e.target.value })}
                       placeholder="e.g. Paste an emoji"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                      className="w-full px-3 py-2 border border-input rounded-lg text-sm bg-background text-foreground"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="block text-sm font-medium text-muted-foreground mb-1">
                       Color
                     </label>
                     <div className="flex items-center gap-2">
@@ -465,13 +474,13 @@ export default function AdminPage() {
                         type="color"
                         value={formData.color}
                         onChange={(e) => setFormData({ ...formData, color: e.target.value })}
-                        className="h-9 w-12 rounded border border-gray-300 cursor-pointer"
+                        className="h-9 w-12 rounded border border-input cursor-pointer"
                       />
                       <input
                         type="text"
                         value={formData.color}
                         onChange={(e) => setFormData({ ...formData, color: e.target.value })}
-                        className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm font-mono"
+                        className="flex-1 px-3 py-2 border border-input rounded-lg text-sm font-mono bg-background text-foreground"
                       />
                     </div>
                   </div>

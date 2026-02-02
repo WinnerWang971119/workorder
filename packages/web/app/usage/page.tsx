@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
+import { ThemeToggle } from '@/components/theme-toggle'
 import {
   Table,
   TableBody,
@@ -79,7 +80,7 @@ export default function UsagePage() {
           const sortedStats: UserStats[] = Array.from(statsMap.entries())
             .map(([userId, counts]) => ({
               user_id: userId,
-              display_name: userMap.get(userId) || userId.slice(0, 8) + '...',
+              display_name: userMap.get(userId) || 'Unknown User',
               completed_count: counts.completed,
               claimed_count: counts.claimed,
             }))
@@ -98,30 +99,42 @@ export default function UsagePage() {
   }, [supabase, router])
 
   if (loading) {
-    return <div className="p-8">Loading...</div>
+    return (
+      <div className="min-h-screen bg-background">
+        <div className="p-8">
+          <div className="animate-pulse space-y-4">
+            <div className="h-8 bg-muted rounded w-1/4" />
+            <div className="h-64 bg-muted rounded" />
+          </div>
+        </div>
+      </div>
+    )
   }
 
   return (
-    <div className="min-h-screen bg-white">
-      <header className="border-b border-gray-200 bg-white px-8 py-4">
+    <div className="min-h-screen bg-background">
+      <header className="border-b border-border bg-background px-8 py-4">
         <div className="flex justify-between items-center">
-          <h1 className="text-3xl font-bold text-gray-900">Usage Statistics</h1>
-          <Button onClick={() => router.push('/workorders')} variant="outline">
-            Back to Work Orders
-          </Button>
+          <h1 className="text-2xl font-bold text-foreground">Usage Statistics</h1>
+          <div className="flex items-center gap-2">
+            <ThemeToggle />
+            <Button onClick={() => router.push('/workorders')} variant="outline" size="sm">
+              Back to Work Orders
+            </Button>
+          </div>
         </div>
       </header>
 
       <main className="p-8">
         {stats.length === 0 ? (
           <div className="text-center py-12">
-            <p className="text-gray-600">No usage data available</p>
+            <p className="text-muted-foreground">No usage data available</p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto border border-border rounded-lg">
             <Table>
               <TableHeader>
-                <TableRow>
+                <TableRow className="hover:bg-transparent">
                   <TableHead>Rank</TableHead>
                   <TableHead>User</TableHead>
                   <TableHead>Completed</TableHead>
@@ -130,9 +143,9 @@ export default function UsagePage() {
               </TableHeader>
               <TableBody>
                 {stats.map((stat, idx) => (
-                  <TableRow key={stat.user_id}>
+                  <TableRow key={stat.user_id} className="hover:bg-muted/50">
                     <TableCell className="font-medium">#{idx + 1}</TableCell>
-                    <TableCell>{stat.display_name}</TableCell>
+                    <TableCell className="text-foreground">{stat.display_name}</TableCell>
                     <TableCell>{stat.completed_count}</TableCell>
                     <TableCell>{stat.claimed_count}</TableCell>
                   </TableRow>
