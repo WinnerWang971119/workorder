@@ -23,6 +23,7 @@ import {
   assignWorkOrderAction,
   removeWorkOrderAction,
   updateWorkOrderAction,
+  cancelWorkOrderAction,
 } from '@/lib/actions/workorder-actions'
 import {
   canClaim,
@@ -31,6 +32,7 @@ import {
   canEdit,
   canAssign,
   canRemove,
+  canCancel,
   isAdmin as checkIsAdminRole,
 } from '@/lib/permission-utils'
 
@@ -52,6 +54,9 @@ export default function WorkOrderDetailPage() {
   // Current user and permissions
   const [currentUserId, setCurrentUserId] = useState<string>('')
   const [userIsAdmin, setUserIsAdmin] = useState(false)
+
+  // Notification user display names (resolved from Discord IDs)
+  const [notifyUserNames, setNotifyUserNames] = useState<string[]>([])
 
   // Edit dialog state
   const [showEditDialog, setShowEditDialog] = useState(false)
@@ -117,6 +122,15 @@ export default function WorkOrderDetailPage() {
       }
 
       setWorkOrder(order)
+
+      // Resolve notification user IDs to display names
+      if (order.notify_user_ids && order.notify_user_ids.length > 0) {
+        const { data: notifyUsers } = await supabase
+          .from('users')
+          .select('display_name')
+          .in('discord_user_id', order.notify_user_ids)
+        setNotifyUserNames(notifyUsers?.map((u) => u.display_name) || [])
+      }
 
       // Fetch subsystems for edit dropdown
       if (order.discord_guild_id) {
@@ -278,7 +292,8 @@ export default function WorkOrderDetailPage() {
   const showEdit = canEdit(currentUserId, workOrder, userIsAdmin)
   const showAssign = canAssign(userIsAdmin)
   const showRemove = canRemove(userIsAdmin)
-  const hasActions = showClaim || showUnclaim || showFinish || showEdit || showAssign || showRemove
+  const showCancelBtn = canCancel(currentUserId, workOrder, userIsAdmin)
+  const hasActions = showClaim || showUnclaim || showFinish || showEdit || showAssign || showRemove || showCancelBtn
 
   return (
     <div className="min-h-screen bg-background">
@@ -361,6 +376,17 @@ export default function WorkOrderDetailPage() {
                     disabled={actionLoading}
                   >
                     Assign
+                  </Button>
+                )}
+                {showCancelBtn && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="border-gray-500 text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800"
+                    onClick={() => handleAction(() => cancelWorkOrderAction(workOrderId), 'Work order cancelled')}
+                    disabled={actionLoading}
+                  >
+                    {actionLoading ? 'Working...' : 'Cancel'}
                   </Button>
                 )}
                 {showRemove && (
@@ -476,7 +502,7 @@ export default function WorkOrderDetailPage() {
               <div>
                 <p className="text-sm text-muted-foreground">Status</p>
                 <Badge
-                  variant={workOrder.status === 'DONE' ? 'secondary' : 'default'}
+                  variant={workOrder.status === 'DONE' || workOrder.status === 'CANCELLED' ? 'secondary' : 'default'}
                 >
                   {STATUS_LABELS[workOrder.status]}
                 </Badge>
@@ -523,6 +549,19 @@ export default function WorkOrderDetailPage() {
                 <p className="text-sm text-muted-foreground">Updated</p>
                 <p className="text-foreground">{formatDate(workOrder.updated_at)}</p>
               </div>
+              {(notifyUserNames.length > 0 || (workOrder.notify_role_ids && workOrder.notify_role_ids.length > 0)) && (
+                <div className="col-span-1 sm:col-span-2">
+                  <p className="text-sm text-muted-foreground">Notifications</p>
+                  <div className="flex flex-wrap gap-2 mt-1">
+                    {notifyUserNames.map((name, i) => (
+                      <Badge key={`user-${i}`} variant="outline">{name}</Badge>
+                    ))}
+                    {workOrder.notify_role_ids?.map((roleId, i) => (
+                      <Badge key={`role-${i}`} variant="secondary">Role: {roleId}</Badge>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 

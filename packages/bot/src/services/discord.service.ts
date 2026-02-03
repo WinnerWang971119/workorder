@@ -56,6 +56,11 @@ export function createWorkOrderEmbed(
     embed.addFields({ name: 'Assigned To', value: assigneeName, inline: true });
   }
 
+  // Show cancelled state
+  if (workOrder.status === WorkOrderStatus.CANCELLED) {
+    embed.addFields({ name: 'Cancelled', value: 'This work order has been cancelled.' });
+  }
+
   // Show removal state clearly
   if (workOrder.is_deleted) {
     embed.setColor(0xFF0000);
@@ -75,8 +80,8 @@ export function createWorkOrderEmbed(
 export function createWorkOrderButtons(workOrder: WorkOrder): ActionRowBuilder<ButtonBuilder> {
   const buttons = new ActionRowBuilder<ButtonBuilder>();
 
-  // No buttons on deleted or done work orders
-  if (workOrder.is_deleted || workOrder.status === WorkOrderStatus.DONE) {
+  // No buttons on deleted, done, or cancelled work orders
+  if (workOrder.is_deleted || workOrder.status === WorkOrderStatus.DONE || workOrder.status === WorkOrderStatus.CANCELLED) {
     return buttons;
   }
 
@@ -103,6 +108,14 @@ export function createWorkOrderButtons(workOrder: WorkOrder): ActionRowBuilder<B
         .setStyle(ButtonStyle.Success)
     );
   }
+
+  // Cancel button always available on OPEN work orders (creator/admin verified at click time)
+  buttons.addComponents(
+    new ButtonBuilder()
+      .setCustomId(`cancel-${workOrder.id}`)
+      .setLabel('Cancel')
+      .setStyle(ButtonStyle.Danger)
+  );
 
   return buttons;
 }

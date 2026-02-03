@@ -82,3 +82,16 @@ export function canAssign(userIsAdmin: boolean): boolean {
 export function canRemove(userIsAdmin: boolean): boolean {
   return userIsAdmin
 }
+
+/**
+ * Can the user cancel this work order?
+ * Must be OPEN, and user must be the creator or an admin.
+ */
+export function canCancel(
+  userId: string,
+  workOrder: WorkOrder,
+  userIsAdmin: boolean
+): boolean {
+  if (workOrder.status !== 'OPEN') return false
+  return workOrder.created_by_user_id === userId || userIsAdmin
+}

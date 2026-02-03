@@ -16,6 +16,7 @@ export enum WorkOrderCategory {
 export enum WorkOrderStatus {
   OPEN = 'OPEN',
   DONE = 'DONE',
+  CANCELLED = 'CANCELLED',
 }
 
 /**
@@ -29,6 +30,7 @@ export enum AuditAction {
   CLAIM = 'CLAIM',
   UNCLAIM = 'UNCLAIM',
   STATUS_CHANGE = 'STATUS_CHANGE',
+  CANCEL = 'CANCEL',
 }
 
 /**
@@ -90,6 +92,8 @@ export interface WorkOrder {
   discord_thread_id: string | null;
   discord_guild_id: string;
   is_deleted: boolean;
+  notify_user_ids: string[];
+  notify_role_ids: string[];
   created_at: string;
   updated_at: string;
 

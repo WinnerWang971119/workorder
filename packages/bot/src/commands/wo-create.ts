@@ -1,8 +1,24 @@
-import { ChatInputCommandInteraction } from 'discord.js';
+import { ChatInputCommandInteraction, TextChannel } from 'discord.js';
 import * as workorderService from '../services/workorder.service.js';
 import * as discordService from '../services/discord.service.js';
 import { getOrCreateUser } from '../services/user.service.js';
 import { supabase } from '../supabase.js';
+
+/**
+ * Extract Discord user IDs from a mention string like "<@123> <@!456>".
+ */
+function parseUserMentions(input: string): string[] {
+  const matches = input.matchAll(/<@!?(\d+)>/g);
+  return [...matches].map((m) => m[1]);
+}
+
+/**
+ * Extract Discord role IDs from a mention string like "<@&789>".
+ */
+function parseRoleMentions(input: string): string[] {
+  const matches = input.matchAll(/<@&(\d+)>/g);
+  return [...matches].map((m) => m[1]);
+}
 
 export async function handleCreate(interaction: ChatInputCommandInteraction): Promise<void> {
   try {
@@ -12,6 +28,12 @@ export async function handleCreate(interaction: ChatInputCommandInteraction): Pr
     const subsystemId = interaction.options.getString('subsystem', true);
     const description = interaction.options.getString('description') || undefined;
     const priority = (interaction.options.getString('priority') || 'MEDIUM') as 'LOW' | 'MEDIUM' | 'HIGH';
+
+    // Parse optional notification mentions
+    const notifyUsersRaw = interaction.options.getString('notify_users') || '';
+    const notifyRolesRaw = interaction.options.getString('notify_roles') || '';
+    const notifyUserIds = parseUserMentions(notifyUsersRaw);
+    const notifyRoleIds = parseRoleMentions(notifyRolesRaw);
 
     // Upsert user to avoid race conditions
     const dbUser = await getOrCreateUser(
@@ -25,9 +47,16 @@ export async function handleCreate(interaction: ChatInputCommandInteraction): Pr
       return;
     }
 
-    // Create work order using the DB user UUID
+    // Create work order using the DB user UUID, including notification targets
     const workOrder = await workorderService.createWorkOrder(
-      { title, description, subsystem_id: subsystemId, priority },
+      {
+        title,
+        description,
+        subsystem_id: subsystemId,
+        priority,
+        notify_user_ids: notifyUserIds.length > 0 ? notifyUserIds : undefined,
+        notify_role_ids: notifyRoleIds.length > 0 ? notifyRoleIds : undefined,
+      },
       dbUser.id,
       interaction.guildId!
     );
@@ -51,6 +80,26 @@ export async function handleCreate(interaction: ChatInputCommandInteraction): Pr
         interaction.client,
         interaction.user.username
       );
+
+      // Send a follow-up mention message so notified users/roles get a ping
+      if (notifyUserIds.length > 0 || notifyRoleIds.length > 0) {
+        const mentions = [
+          ...notifyUserIds.map((id) => `<@${id}>`),
+          ...notifyRoleIds.map((id) => `<@&${id}>`),
+        ].join(' ');
+
+        try {
+          const channel = await interaction.client.channels.fetch(guildConfig.work_orders_channel_id);
+          if (channel && channel.isTextBased()) {
+            await (channel as TextChannel).send({
+              content: `${mentions} -- New work order: **${title}**`,
+              allowedMentions: { users: notifyUserIds, roles: notifyRoleIds },
+            });
+          }
+        } catch (err) {
+          console.error('Failed to send notification mentions:', err);
+        }
+      }
     }
 
     // Reply with the full work order card so the creator sees all

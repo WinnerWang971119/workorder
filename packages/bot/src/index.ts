@@ -11,6 +11,7 @@ import { handleFinish } from './commands/wo-finish.js';
 import { handleClaimButton } from './buttons/claim-button.js';
 import { handleUnclaimButton } from './buttons/unclaim-button.js';
 import { handleMarkDoneButton } from './buttons/mark-done-button.js';
+import { handleCancelButton } from './buttons/cancel-button.js';
 import * as subsystemService from './services/subsystem.service.js';
 import { ChatInputCommandInteraction, ButtonInteraction, AutocompleteInteraction } from 'discord.js';
 
@@ -138,6 +139,8 @@ async function main(): Promise<void> {
             await handleUnclaimButton(btn);
           } else if (customId.startsWith('done-')) {
             await handleMarkDoneButton(btn);
+          } else if (customId.startsWith('cancel-')) {
+            await handleCancelButton(btn);
           }
         } catch (error) {
           console.error('Error handling button interaction:', error);

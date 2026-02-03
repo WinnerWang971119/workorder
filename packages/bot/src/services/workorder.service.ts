@@ -14,21 +14,27 @@ export async function createWorkOrder(
     description?: string;
     subsystem_id: string;
     priority?: 'LOW' | 'MEDIUM' | 'HIGH';
+    notify_user_ids?: string[];
+    notify_role_ids?: string[];
   },
   createdByUserId: string,
   guildId: string
 ): Promise<WorkOrder | null> {
   try {
+    const insertData: Record<string, unknown> = {
+      title: data.title,
+      description: data.description || '',
+      subsystem_id: data.subsystem_id,
+      priority: data.priority || 'MEDIUM',
+      created_by_user_id: createdByUserId,
+      discord_guild_id: guildId,
+    };
+    if (data.notify_user_ids) insertData.notify_user_ids = data.notify_user_ids;
+    if (data.notify_role_ids) insertData.notify_role_ids = data.notify_role_ids;
+
     const { data: workOrder, error } = await supabase
       .from('work_orders')
-      .insert({
-        title: data.title,
-        description: data.description || '',
-        subsystem_id: data.subsystem_id,
-        priority: data.priority || 'MEDIUM',
-        created_by_user_id: createdByUserId,
-        discord_guild_id: guildId,
-      })
+      .insert(insertData)
       .select(WO_SELECT)
       .single();
 
@@ -240,6 +246,41 @@ export async function listUnfinishedWorkOrders(guildId: string): Promise<WorkOrd
   } catch (error) {
     console.error('Error listing work orders:', error);
     return [];
+  }
+}
+
+/**
+ * Cancel a work order. Sets status to CANCELLED and logs the action.
+ */
+export async function cancelWorkOrder(
+  id: string,
+  actorId: string,
+  guildId: string
+): Promise<WorkOrder | null> {
+  try {
+    const { data: workOrder, error } = await supabase
+      .from('work_orders')
+      .update({ status: WorkOrderStatus.CANCELLED })
+      .eq('id', id)
+      .select(WO_SELECT)
+      .single();
+
+    if (error) {
+      console.error('Failed to cancel work order:', error);
+      return null;
+    }
+
+    if (workOrder) {
+      await logAction(guildId, id, actorId, AuditAction.CANCEL, {
+        from: WorkOrderStatus.OPEN,
+        to: WorkOrderStatus.CANCELLED,
+      });
+    }
+
+    return workOrder;
+  } catch (error) {
+    console.error('Error cancelling work order:', error);
+    return null;
   }
 }
 

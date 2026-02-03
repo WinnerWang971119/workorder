@@ -102,6 +102,24 @@ export function canClaimWorkOrder(dbUserId: string, workOrder: WorkOrder): boole
 }
 
 /**
+ * Check if a Discord user can cancel a work order.
+ * The creator or an admin can cancel.
+ */
+export async function canCancelWorkOrder(
+  discordUserId: string,
+  dbUserId: string,
+  workOrder: WorkOrder,
+  guildId: string,
+  client: Client
+): Promise<boolean> {
+  if (workOrder.created_by_user_id === dbUserId) {
+    return true;
+  }
+  const role = await getUserRole(discordUserId, guildId, client);
+  return role === AppRole.ADMIN;
+}
+
+/**
  * Check if a user can unclaim a work order.
  * The claimer themselves or an admin can unclaim.
  */

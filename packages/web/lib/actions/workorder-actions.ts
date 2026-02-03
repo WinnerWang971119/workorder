@@ -265,6 +265,41 @@ export async function removeWorkOrderAction(workOrderId: string): Promise<Action
 }
 
 /**
+ * Cancel a work order. Creator or admin can cancel.
+ */
+export async function cancelWorkOrderAction(workOrderId: string): Promise<ActionResult> {
+  const { isAdmin, userId, supabase } = await checkAdmin()
+  if (!userId) return { success: false, error: 'Not authenticated' }
+
+  const { data: wo, error: fetchErr } = await supabase
+    .from('work_orders')
+    .select('*')
+    .eq('id', workOrderId)
+    .single()
+
+  if (fetchErr || !wo) return { success: false, error: 'Work order not found' }
+  if (wo.status !== 'OPEN') return { success: false, error: 'Work order is not open' }
+
+  const canCancelWo = wo.created_by_user_id === userId || isAdmin
+  if (!canCancelWo) {
+    return { success: false, error: 'Only the creator or an admin can cancel this work order' }
+  }
+
+  const { error: updateErr } = await supabase
+    .from('work_orders')
+    .update({ status: 'CANCELLED' })
+    .eq('id', workOrderId)
+
+  if (updateErr) return { success: false, error: 'Failed to cancel work order' }
+
+  await logAudit(supabase, wo.discord_guild_id, workOrderId, userId, AuditAction.CANCEL, {
+    from: 'OPEN',
+    to: 'CANCELLED',
+  })
+  return { success: true }
+}
+
+/**
  * Edit a work order's fields. Creator or admin can edit.
  */
 export async function updateWorkOrderAction(
@@ -314,4 +349,158 @@ export async function updateWorkOrderAction(
     changes: updateData,
   })
   return { success: true }
+}
+
+/**
+ * Create a work order from the web dashboard.
+ * Posts a Discord card via the bot token REST API so the card appears
+ * in the guild's work-orders channel just like bot-created ones.
+ */
+export async function createWorkOrderAction(data: {
+  title: string
+  description?: string
+  subsystem_id: string
+  priority?: string
+  notify_user_ids?: string[]
+  notify_role_ids?: string[]
+}): Promise<ActionResult & { workOrderId?: string }> {
+  const meta = await getCurrentUserMeta()
+  if (!meta) return { success: false, error: 'Not authenticated' }
+
+  const supabase = await createClient()
+
+  const insertData: Record<string, unknown> = {
+    title: data.title,
+    description: data.description || '',
+    subsystem_id: data.subsystem_id,
+    priority: data.priority || 'MEDIUM',
+    created_by_user_id: meta.userId,
+    discord_guild_id: meta.guildId,
+  }
+  if (data.notify_user_ids && data.notify_user_ids.length > 0) {
+    insertData.notify_user_ids = data.notify_user_ids
+  }
+  if (data.notify_role_ids && data.notify_role_ids.length > 0) {
+    insertData.notify_role_ids = data.notify_role_ids
+  }
+
+  const { data: wo, error: insertErr } = await supabase
+    .from('work_orders')
+    .insert(insertData)
+    .select('*, subsystem:subsystems(*)')
+    .single()
+
+  if (insertErr || !wo) {
+    console.error('Failed to create work order:', insertErr)
+    return { success: false, error: 'Failed to create work order' }
+  }
+
+  // Log the creation
+  await logAudit(supabase, meta.guildId, wo.id, meta.userId, AuditAction.CREATE, {
+    title: data.title,
+    subsystem_id: data.subsystem_id,
+  })
+
+  // Post the Discord card via bot token REST API
+  const botToken = process.env.DISCORD_BOT_TOKEN
+  if (botToken) {
+    const { data: guildConfig } = await supabase
+      .from('guild_configs')
+      .select('work_orders_channel_id')
+      .eq('guild_id', meta.guildId)
+      .single()
+
+    if (guildConfig?.work_orders_channel_id) {
+      try {
+        const { sendDiscordMessage } = await import('@/lib/discord-bot')
+
+        // Resolve creator display name for the embed
+        const { data: creator } = await supabase
+          .from('users')
+          .select('display_name')
+          .eq('id', meta.userId)
+          .single()
+
+        const creatorName = creator?.display_name || 'Unknown'
+        const subsystemEmoji = wo.subsystem?.emoji || ''
+        const subsystemLabel = wo.subsystem?.display_name || 'Unknown'
+        const priorityLabel = data.priority || 'MEDIUM'
+
+        // Build a Discord embed matching the bot's format
+        const embed = {
+          color: priorityLabel === 'HIGH' ? 0xFF6B6B : priorityLabel === 'LOW' ? 0x95E1D3 : 0xFFD93D,
+          title: `${subsystemEmoji} [${subsystemLabel}] ${wo.title}`,
+          description: wo.description || '*No description provided*',
+          fields: [
+            { name: 'Status', value: 'Unclaimed', inline: true },
+            { name: 'Priority', value: priorityLabel, inline: true },
+            { name: 'Subsystem', value: `${subsystemEmoji} ${subsystemLabel}`, inline: true },
+            { name: 'Created By', value: creatorName, inline: true },
+          ],
+          footer: { text: `ID: ${wo.id}` },
+          timestamp: wo.created_at,
+        }
+
+        // Build action buttons matching the bot's format
+        const components = [{
+          type: 1, // ActionRow
+          components: [
+            {
+              type: 2, // Button
+              style: 1, // Primary
+              label: 'Claim',
+              custom_id: `claim-${wo.id}`,
+            },
+            {
+              type: 2,
+              style: 4, // Danger
+              label: 'Cancel',
+              custom_id: `cancel-${wo.id}`,
+            },
+          ],
+        }]
+
+        const msgResult = await sendDiscordMessage(
+          botToken,
+          guildConfig.work_orders_channel_id,
+          { embeds: [embed], components }
+        )
+
+        // Save Discord message/channel IDs back to the work order
+        if (msgResult?.id) {
+          await supabase
+            .from('work_orders')
+            .update({
+              discord_message_id: msgResult.id,
+              discord_channel_id: guildConfig.work_orders_channel_id,
+            })
+            .eq('id', wo.id)
+        }
+
+        // Send notification mentions if targets exist
+        const notifyUserIds = data.notify_user_ids || []
+        const notifyRoleIds = data.notify_role_ids || []
+        if (notifyUserIds.length > 0 || notifyRoleIds.length > 0) {
+          const mentions = [
+            ...notifyUserIds.map((id) => `<@${id}>`),
+            ...notifyRoleIds.map((id) => `<@&${id}>`),
+          ].join(' ')
+
+          await sendDiscordMessage(
+            botToken,
+            guildConfig.work_orders_channel_id,
+            {
+              content: `${mentions} -- New work order: **${wo.title}**`,
+              allowed_mentions: { users: notifyUserIds, roles: notifyRoleIds },
+            }
+          )
+        }
+      } catch (err) {
+        // Discord posting is best-effort; the work order is already created
+        console.error('Failed to post Discord card from web:', err)
+      }
+    }
+  }
+
+  return { success: true, workOrderId: wo.id }
 }

@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { WorkOrder, STATUS_LABELS, PRIORITY_LABELS } from '@workorder/shared'
+import { WorkOrder, WorkOrderStatus, STATUS_LABELS, PRIORITY_LABELS } from '@workorder/shared'
 import {
   Table,
   TableBody,
@@ -20,6 +20,14 @@ import Link from 'next/link'
 
 const PAGE_SIZE = 25
 
+type FilterStatus = 'OPEN' | 'CANCELLED' | 'DONE'
+
+const FILTER_TABS: { label: string; value: FilterStatus }[] = [
+  { label: 'Open', value: 'OPEN' },
+  { label: 'Cancelled', value: 'CANCELLED' },
+  { label: 'Done', value: 'DONE' },
+]
+
 export default function WorkOrdersPage() {
   const router = useRouter()
   const supabase = createClient()
@@ -28,6 +36,7 @@ export default function WorkOrdersPage() {
   const [loading, setLoading] = useState(true)
   const [page, setPage] = useState(0)
   const [hasMore, setHasMore] = useState(false)
+  const [filter, setFilter] = useState<FilterStatus>('OPEN')
 
   const loadData = useCallback(async () => {
     try {
@@ -37,14 +46,14 @@ export default function WorkOrdersPage() {
         return
       }
 
-      // Paginated query for open, non-deleted work orders
+      // Paginated query filtered by selected status tab
       const from = page * PAGE_SIZE
       const to = from + PAGE_SIZE
 
       const { data: orders, error } = await supabase
         .from('work_orders')
         .select('*, subsystem:subsystems(*)')
-        .eq('status', 'OPEN')
+        .eq('status', filter)
         .eq('is_deleted', false)
         .order('created_at', { ascending: false })
         .range(from, to)
@@ -86,7 +95,7 @@ export default function WorkOrdersPage() {
     } finally {
       setLoading(false)
     }
-  }, [supabase, router, page])
+  }, [supabase, router, page, filter])
 
   useEffect(() => {
     loadData()
@@ -96,6 +105,19 @@ export default function WorkOrdersPage() {
     if (!userId) return '-'
     return userMap.get(userId) || 'Unknown User'
   }
+
+  const handleFilterChange = (newFilter: FilterStatus) => {
+    setFilter(newFilter)
+    setPage(0)
+    setLoading(true)
+  }
+
+  /** Empty-state message varies by active filter */
+  const emptyMessage = filter === 'OPEN'
+    ? 'No open work orders'
+    : filter === 'CANCELLED'
+      ? 'No cancelled work orders'
+      : 'No completed work orders'
 
   if (loading) {
     return (
@@ -117,6 +139,9 @@ export default function WorkOrdersPage() {
           <h1 className="text-2xl font-bold text-foreground">Work Orders</h1>
           <div className="flex items-center gap-2">
             <ThemeToggle />
+            <Link href="/workorders/create">
+              <Button size="sm">Create Work Order</Button>
+            </Link>
             <Button onClick={() => router.push('/usage')} variant="outline" size="sm">
               Usage Stats
             </Button>
@@ -138,9 +163,26 @@ export default function WorkOrdersPage() {
       </header>
 
       <main className="p-8">
+        {/* Filter tabs */}
+        <div className="flex gap-1 mb-6 border-b border-border">
+          {FILTER_TABS.map((tab) => (
+            <button
+              key={tab.value}
+              onClick={() => handleFilterChange(tab.value)}
+              className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                filter === tab.value
+                  ? 'border-foreground text-foreground'
+                  : 'border-transparent text-muted-foreground hover:text-foreground hover:border-muted-foreground'
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+
         {workOrders.length === 0 ? (
           <div className="text-center py-12">
-            <p className="text-muted-foreground">No open work orders</p>
+            <p className="text-muted-foreground">{emptyMessage}</p>
           </div>
         ) : (
           <>
@@ -177,7 +219,9 @@ export default function WorkOrdersPage() {
                         )}
                       </TableCell>
                       <TableCell>
-                        <Badge variant="default">{STATUS_LABELS[order.status]}</Badge>
+                        <Badge variant={order.status === 'CANCELLED' ? 'secondary' : 'default'}>
+                          {STATUS_LABELS[order.status]}
+                        </Badge>
                       </TableCell>
                       <TableCell>{PRIORITY_LABELS[order.priority] || order.priority}</TableCell>
                       <TableCell>{resolveUser(order.created_by_user_id)}</TableCell>

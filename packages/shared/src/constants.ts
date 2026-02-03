@@ -7,6 +7,7 @@ import type { WorkOrder } from './types/workorder.js';
 export const STATUS_LABELS: Record<WorkOrderStatus, string> = {
   [WorkOrderStatus.OPEN]: 'Open',
   [WorkOrderStatus.DONE]: 'Done',
+  [WorkOrderStatus.CANCELLED]: 'Cancelled',
 };
 
 /**
@@ -15,6 +16,7 @@ export const STATUS_LABELS: Record<WorkOrderStatus, string> = {
 export const STATUS_COLORS: Record<WorkOrderStatus, string> = {
   [WorkOrderStatus.OPEN]: '#FFCC00',
   [WorkOrderStatus.DONE]: '#00AA00',
+  [WorkOrderStatus.CANCELLED]: '#808080',
 };
 
 /**
@@ -55,6 +57,7 @@ export const PRIORITY_COLORS: Record<string, number> = {
  * three display states: Unclaimed, Claimed, or Finished.
  */
 export function getDisplayStatus(workOrder: WorkOrder): string {
+  if (workOrder.status === WorkOrderStatus.CANCELLED) return 'Cancelled';
   if (workOrder.status === WorkOrderStatus.DONE) return '\u2705 Finished';
   if (workOrder.claimed_by_user_id) return '\uD83D\uDC64 Claimed';
   return '\uD83D\uDCCB Unclaimed';
@@ -66,6 +69,7 @@ export function getDisplayStatus(workOrder: WorkOrder): string {
  * reflects priority so urgent items stand out visually.
  */
 export function getEmbedColor(workOrder: WorkOrder): number {
+  if (workOrder.status === WorkOrderStatus.CANCELLED) return 0x808080;
   if (workOrder.status === WorkOrderStatus.DONE) return 0x00AA00;
   if (workOrder.claimed_by_user_id) return 0x3498DB;
   return PRIORITY_COLORS[workOrder.priority] ?? 0xFFCC00;
@@ -82,4 +86,5 @@ export const ACTION_LABELS: Record<AuditAction, string> = {
   [AuditAction.CLAIM]: 'Claimed',
   [AuditAction.UNCLAIM]: 'Unclaimed',
   [AuditAction.STATUS_CHANGE]: 'Status Changed',
+  [AuditAction.CANCEL]: 'Cancelled',
 };

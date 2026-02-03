@@ -52,6 +52,12 @@ export async function registerCommands(client: Client): Promise<void> {
             { name: 'Medium', value: 'MEDIUM' },
             { name: 'High', value: 'HIGH' }
           )
+      )
+      .addStringOption((option) =>
+        option.setName('notify_users').setDescription('Mention users to notify (e.g. @user1 @user2)').setRequired(false)
+      )
+      .addStringOption((option) =>
+        option.setName('notify_roles').setDescription('Mention roles to notify (e.g. @role1)').setRequired(false)
       ),
     new SlashCommandBuilder()
       .setName('wo-edit')
