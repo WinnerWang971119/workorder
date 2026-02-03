@@ -9,16 +9,30 @@ interface ActionResult {
 }
 
 /**
- * Helper: get the current user's Supabase ID from the server-side session.
+ * Helper: get the current user's database ID (users table) from the server-side session.
+ * auth.uid() is the Supabase Auth UUID, which differs from the users table UUID.
+ * We resolve by matching the Discord user ID stored in auth metadata.
  */
 async function getCurrentUserId() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  return user?.id ?? null
+  if (!user) return null
+
+  const discordUserId = user.user_metadata?.provider_id || user.user_metadata?.sub
+  if (!discordUserId) return null
+
+  const { data: dbUser } = await supabase
+    .from('users')
+    .select('id')
+    .eq('discord_user_id', discordUserId)
+    .single()
+
+  return dbUser?.id ?? null
 }
 
 /**
- * Helper: get the current user's Discord roles and guild ID from metadata.
+ * Helper: get the current user's database ID, Discord roles, and guild ID.
+ * Resolves the users table ID via Discord user ID, same as getCurrentUserId.
  */
 async function getCurrentUserMeta() {
   const supabase = await createClient()
@@ -26,8 +40,19 @@ async function getCurrentUserMeta() {
   if (!user) return null
 
   const meta = user.user_metadata || {}
+  const discordUserId = meta.provider_id || meta.sub
+  if (!discordUserId) return null
+
+  const { data: dbUser } = await supabase
+    .from('users')
+    .select('id')
+    .eq('discord_user_id', discordUserId)
+    .single()
+
+  if (!dbUser) return null
+
   return {
-    userId: user.id,
+    userId: dbUser.id,
     discordRoles: (meta.discord_roles || []) as string[],
     guildId: (meta.discord_guild_id || '') as string,
   }

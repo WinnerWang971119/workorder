@@ -71,10 +71,23 @@ export default function WorkOrderDetailPage() {
         return
       }
 
-      setCurrentUserId(session.user.id)
+      // Resolve the database user ID (users table) from the Discord user ID.
+      // session.user.id is the Supabase Auth UUID, which differs from the
+      // users table UUID used in work order foreign keys.
+      const meta = session.user.user_metadata || {}
+      const discordUserId: string = meta.provider_id || meta.sub || ''
+      if (discordUserId) {
+        const { data: dbUser } = await supabase
+          .from('users')
+          .select('id')
+          .eq('discord_user_id', discordUserId)
+          .single()
+        if (dbUser) {
+          setCurrentUserId(dbUser.id)
+        }
+      }
 
       // Determine admin status from stored Discord roles
-      const meta = session.user.user_metadata || {}
       const discordRoles: string[] = meta.discord_roles || []
       const guildId: string = meta.discord_guild_id || ''
 
