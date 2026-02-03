@@ -27,7 +27,7 @@ async function handleSubsystemAutocomplete(interaction: AutocompleteInteraction)
     return;
   }
 
-  const subsystems = await subsystemService.getSubsystemsForGuild(guildId);
+  const subsystems = await subsystemService.getSubsystemsForGuildCached(guildId);
   const focusedValue = interaction.options.getFocused().toLowerCase();
 
   const filtered = subsystems
@@ -76,7 +76,10 @@ async function main(): Promise<void> {
           if (focused.name === 'subsystem') {
             await handleSubsystemAutocomplete(interaction);
           }
-        } catch (error) {
+        } catch (error: any) {
+          if (error?.code === 10062) {
+            return;
+          }
           console.error('Error handling autocomplete:', error);
         }
         return;

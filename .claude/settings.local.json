@@ -8,7 +8,13 @@
       "Bash(pnpm shared:build:*)",
       "Bash(pnpm web:build:*)",
       "Bash(pnpm build)",
-      "Bash(pnpm --filter @workorder/web add:*)"
+      "Bash(pnpm --filter @workorder/web add:*)",
+      "Bash(git add:*)",
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nfix\\(web\\): resolve correct database user ID from Discord OAuth metadata\n\nThe Supabase Auth UUID \\(auth.uid\\(\\)\\) differs from the users table UUID\nused in work order foreign keys. This caused user identity mismatches\nwhen checking ownership or performing actions. Now both client-side\n\\(detail page\\) and server-side \\(action helpers\\) resolve the users table\nID by looking up the Discord user ID stored in auth metadata.\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(git push:*)",
+      "Bash(pnpm bot:build:*)",
+      "Bash(dir:*)",
+      "Bash(git commit:*)"
     ]
   }
 }

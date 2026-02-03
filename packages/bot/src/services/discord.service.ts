@@ -142,7 +142,17 @@ export async function postWorkOrderCard(
     const buttons = createWorkOrderButtons(workOrder);
 
     const components = buttons.components.length > 0 ? [buttons] : [];
+    const notifyUserIds = workOrder.notify_user_ids || [];
+    const notifyRoleIds = workOrder.notify_role_ids || [];
+    const hasMentions = notifyUserIds.length > 0 || notifyRoleIds.length > 0;
+    const mentions = [
+      ...notifyUserIds.map((id) => `<@${id}>`),
+      ...notifyRoleIds.map((id) => `<@&${id}>`),
+    ].join(' ');
+
     const message = await (channel as TextChannel).send({
+      content: hasMentions ? mentions : undefined,
+      allowedMentions: hasMentions ? { users: notifyUserIds, roles: notifyRoleIds } : undefined,
       embeds: [embed],
       components,
     });

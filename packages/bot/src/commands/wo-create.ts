@@ -1,23 +1,15 @@
-import { ChatInputCommandInteraction, TextChannel } from 'discord.js';
+import { ChatInputCommandInteraction } from 'discord.js';
 import * as workorderService from '../services/workorder.service.js';
 import * as discordService from '../services/discord.service.js';
 import { getOrCreateUser } from '../services/user.service.js';
 import { supabase } from '../supabase.js';
 
-/**
- * Extract Discord user IDs from a mention string like "<@123> <@!456>".
- */
-function parseUserMentions(input: string): string[] {
-  const matches = input.matchAll(/<@!?(\d+)>/g);
-  return [...matches].map((m) => m[1]);
+function isDefined<T>(value: T | null | undefined): value is T {
+  return value !== null && value !== undefined;
 }
 
-/**
- * Extract Discord role IDs from a mention string like "<@&789>".
- */
-function parseRoleMentions(input: string): string[] {
-  const matches = input.matchAll(/<@&(\d+)>/g);
-  return [...matches].map((m) => m[1]);
+function uniqueIds(ids: string[]): string[] {
+  return [...new Set(ids)];
 }
 
 export async function handleCreate(interaction: ChatInputCommandInteraction): Promise<void> {
@@ -29,11 +21,19 @@ export async function handleCreate(interaction: ChatInputCommandInteraction): Pr
     const description = interaction.options.getString('description') || undefined;
     const priority = (interaction.options.getString('priority') || 'MEDIUM') as 'LOW' | 'MEDIUM' | 'HIGH';
 
-    // Parse optional notification mentions
-    const notifyUsersRaw = interaction.options.getString('notify_users') || '';
-    const notifyRolesRaw = interaction.options.getString('notify_roles') || '';
-    const notifyUserIds = parseUserMentions(notifyUsersRaw);
-    const notifyRoleIds = parseRoleMentions(notifyRolesRaw);
+    // Collect optional notification targets selected in the command UI
+    const notifyUserIds = uniqueIds(
+      ['notify_user_1', 'notify_user_2', 'notify_user_3']
+        .map((optionName) => interaction.options.getUser(optionName))
+        .filter(isDefined)
+        .map((user) => user.id)
+    );
+    const notifyRoleIds = uniqueIds(
+      ['notify_role_1', 'notify_role_2', 'notify_role_3']
+        .map((optionName) => interaction.options.getRole(optionName))
+        .filter(isDefined)
+        .map((role) => role.id)
+    );
 
     // Upsert user to avoid race conditions
     const dbUser = await getOrCreateUser(
@@ -73,42 +73,24 @@ export async function handleCreate(interaction: ChatInputCommandInteraction): Pr
       .eq('guild_id', interaction.guildId!)
       .single();
 
+    let cardMessage: Awaited<ReturnType<typeof discordService.postWorkOrderCard>> = null;
     if (guildConfig?.work_orders_channel_id) {
-      await discordService.postWorkOrderCard(
+      cardMessage = await discordService.postWorkOrderCard(
         guildConfig.work_orders_channel_id,
         workOrder,
         interaction.client,
         interaction.user.username
       );
-
-      // Send a follow-up mention message so notified users/roles get a ping
-      if (notifyUserIds.length > 0 || notifyRoleIds.length > 0) {
-        const mentions = [
-          ...notifyUserIds.map((id) => `<@${id}>`),
-          ...notifyRoleIds.map((id) => `<@&${id}>`),
-        ].join(' ');
-
-        try {
-          const channel = await interaction.client.channels.fetch(guildConfig.work_orders_channel_id);
-          if (channel && channel.isTextBased()) {
-            await (channel as TextChannel).send({
-              content: `${mentions} -- New work order: **${title}**`,
-              allowedMentions: { users: notifyUserIds, roles: notifyRoleIds },
-            });
-          }
-        } catch (err) {
-          console.error('Failed to send notification mentions:', err);
-        }
-      }
     }
 
-    // Reply with the full work order card so the creator sees all
-    // details and can immediately claim the work order via button
-    const embed = discordService.createWorkOrderEmbed(workOrder, interaction.user.username);
-    const buttons = discordService.createWorkOrderButtons(workOrder);
-    const components = buttons.components.length > 0 ? [buttons] : [];
-
-    await interaction.editReply({ embeds: [embed], components });
+    // Simple confirmation reply instead of a duplicate card.
+    // If the card was posted to the channel, link to it so the creator can jump there.
+    if (guildConfig?.work_orders_channel_id && cardMessage) {
+      const link = `https://discord.com/channels/${interaction.guildId}/${guildConfig.work_orders_channel_id}/${cardMessage.id}`;
+      await interaction.editReply(`Work order **${workOrder.title}** created. [Jump to card](${link})`);
+    } else {
+      await interaction.editReply(`Work order **${workOrder.title}** created.`);
+    }
   } catch (error) {
     console.error('Error in wo-create command:', error);
     if (!interaction.replied && !interaction.deferred) {
