@@ -53,23 +53,14 @@ export async function registerCommands(client: Client): Promise<void> {
             { name: 'High', value: 'HIGH' }
           )
       )
-      .addUserOption((option) =>
-        option.setName('notify_user_1').setDescription('User to notify (optional)').setRequired(false)
+      .addStringOption((option) =>
+        option.setName('cad_link').setDescription('CAD link (Onshape, etc.)').setRequired(false)
       )
       .addUserOption((option) =>
-        option.setName('notify_user_2').setDescription('Another user to notify (optional)').setRequired(false)
-      )
-      .addUserOption((option) =>
-        option.setName('notify_user_3').setDescription('Another user to notify (optional)').setRequired(false)
+        option.setName('notify_user').setDescription('User to notify (optional)').setRequired(false)
       )
       .addRoleOption((option) =>
-        option.setName('notify_role_1').setDescription('Role to notify (optional)').setRequired(false)
-      )
-      .addRoleOption((option) =>
-        option.setName('notify_role_2').setDescription('Another role to notify (optional)').setRequired(false)
-      )
-      .addRoleOption((option) =>
-        option.setName('notify_role_3').setDescription('Another role to notify (optional)').setRequired(false)
+        option.setName('notify_role').setDescription('Role to notify (optional)').setRequired(false)
       ),
     new SlashCommandBuilder()
       .setName('wo-edit')
@@ -87,6 +78,9 @@ export async function registerCommands(client: Client): Promise<void> {
           .setDescription('New subsystem (start typing to search)')
           .setRequired(false)
           .setAutocomplete(true)
+      )
+      .addStringOption((option) =>
+        option.setName('cad_link').setDescription('CAD link (Onshape, etc.)').setRequired(false)
       ),
     new SlashCommandBuilder()
       .setName('wo-remove')

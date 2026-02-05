@@ -60,7 +60,7 @@ export default function WorkOrderDetailPage() {
 
   // Edit dialog state
   const [showEditDialog, setShowEditDialog] = useState(false)
-  const [editForm, setEditForm] = useState({ title: '', description: '', priority: '', subsystem_id: '' })
+  const [editForm, setEditForm] = useState({ title: '', description: '', priority: '', subsystem_id: '', cad_link: '' })
 
   // Assign dialog state
   const [showAssignDialog, setShowAssignDialog] = useState(false)
@@ -232,6 +232,7 @@ export default function WorkOrderDetailPage() {
       description: workOrder.description || '',
       priority: workOrder.priority,
       subsystem_id: workOrder.subsystem_id || '',
+      cad_link: workOrder.cad_link || '',
     })
     setShowEditDialog(true)
   }
@@ -453,6 +454,16 @@ export default function WorkOrderDetailPage() {
                     </select>
                   </div>
                 </div>
+                <div>
+                  <label className="block text-sm font-medium text-muted-foreground mb-1">CAD Link</label>
+                  <input
+                    type="url"
+                    value={editForm.cad_link}
+                    onChange={(e) => setEditForm({ ...editForm, cad_link: e.target.value })}
+                    placeholder="https://cad.onshape.com/... (optional)"
+                    className="w-full px-3 py-2 border border-input rounded-md bg-background text-foreground focus:ring-2 focus:ring-ring focus:border-transparent"
+                  />
+                </div>
                 <div className="flex justify-end gap-2 pt-2">
                   <Button variant="outline" onClick={() => setShowEditDialog(false)}>Cancel</Button>
                   <Button onClick={handleEditSubmit}>Save Changes</Button>
@@ -529,6 +540,19 @@ export default function WorkOrderDetailPage() {
                 <p className="text-sm text-muted-foreground">Description</p>
                 <p className="text-foreground whitespace-pre-wrap">{workOrder.description || '-'}</p>
               </div>
+              {workOrder.cad_link && (
+                <div className="col-span-1 sm:col-span-2">
+                  <p className="text-sm text-muted-foreground">CAD Link</p>
+                  <a
+                    href={workOrder.cad_link}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-blue-600 dark:text-blue-400 hover:underline break-all"
+                  >
+                    {workOrder.cad_link}
+                  </a>
+                </div>
+              )}
               <div>
                 <p className="text-sm text-muted-foreground">Created By</p>
                 <p className="text-foreground">{resolveUser(workOrder.created_by_user_id)}</p>

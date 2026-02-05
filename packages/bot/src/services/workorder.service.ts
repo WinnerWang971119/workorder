@@ -14,6 +14,7 @@ export async function createWorkOrder(
     description?: string;
     subsystem_id: string;
     priority?: 'LOW' | 'MEDIUM' | 'HIGH';
+    cad_link?: string;
     notify_user_ids?: string[];
     notify_role_ids?: string[];
   },
@@ -29,6 +30,7 @@ export async function createWorkOrder(
       created_by_user_id: createdByUserId,
       discord_guild_id: guildId,
     };
+    if (data.cad_link) insertData.cad_link = data.cad_link;
     if (data.notify_user_ids) insertData.notify_user_ids = data.notify_user_ids;
     if (data.notify_role_ids) insertData.notify_role_ids = data.notify_role_ids;
 

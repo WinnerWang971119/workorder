@@ -12,8 +12,9 @@ export async function handleEdit(interaction: ChatInputCommandInteraction): Prom
     const newTitle = interaction.options.getString('title');
     const newDescription = interaction.options.getString('description');
     const newSubsystemId = interaction.options.getString('subsystem');
+    const newCadLink = interaction.options.getString('cad_link');
 
-    if (!newTitle && !newDescription && !newSubsystemId) {
+    if (!newTitle && !newDescription && !newSubsystemId && !newCadLink) {
       await interaction.editReply('No changes provided. Specify at least one field to update.');
       return;
     }
@@ -55,6 +56,7 @@ export async function handleEdit(interaction: ChatInputCommandInteraction): Prom
     if (newTitle) updates.title = newTitle;
     if (newDescription) updates.description = newDescription;
     if (newSubsystemId) updates.subsystem_id = newSubsystemId;
+    if (newCadLink) updates.cad_link = newCadLink;
 
     const updated = await workorderService.updateWorkOrder(workOrderId, updates, dbUser.id, interaction.guildId!);
     if (!updated) {

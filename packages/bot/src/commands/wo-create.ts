@@ -4,14 +4,6 @@ import * as discordService from '../services/discord.service.js';
 import { getOrCreateUser } from '../services/user.service.js';
 import { supabase } from '../supabase.js';
 
-function isDefined<T>(value: T | null | undefined): value is T {
-  return value !== null && value !== undefined;
-}
-
-function uniqueIds(ids: string[]): string[] {
-  return [...new Set(ids)];
-}
-
 export async function handleCreate(interaction: ChatInputCommandInteraction): Promise<void> {
   try {
     await interaction.deferReply();
@@ -20,20 +12,13 @@ export async function handleCreate(interaction: ChatInputCommandInteraction): Pr
     const subsystemId = interaction.options.getString('subsystem', true);
     const description = interaction.options.getString('description') || undefined;
     const priority = (interaction.options.getString('priority') || 'MEDIUM') as 'LOW' | 'MEDIUM' | 'HIGH';
+    const cadLink = interaction.options.getString('cad_link') || undefined;
 
-    // Collect optional notification targets selected in the command UI
-    const notifyUserIds = uniqueIds(
-      ['notify_user_1', 'notify_user_2', 'notify_user_3']
-        .map((optionName) => interaction.options.getUser(optionName))
-        .filter(isDefined)
-        .map((user) => user.id)
-    );
-    const notifyRoleIds = uniqueIds(
-      ['notify_role_1', 'notify_role_2', 'notify_role_3']
-        .map((optionName) => interaction.options.getRole(optionName))
-        .filter(isDefined)
-        .map((role) => role.id)
-    );
+    // Collect optional notification targets (single user + single role)
+    const notifyUser = interaction.options.getUser('notify_user');
+    const notifyRole = interaction.options.getRole('notify_role');
+    const notifyUserIds = notifyUser ? [notifyUser.id] : [];
+    const notifyRoleIds = notifyRole ? [notifyRole.id] : [];
 
     // Upsert user to avoid race conditions
     const dbUser = await getOrCreateUser(
@@ -54,6 +39,7 @@ export async function handleCreate(interaction: ChatInputCommandInteraction): Pr
         description,
         subsystem_id: subsystemId,
         priority,
+        cad_link: cadLink,
         notify_user_ids: notifyUserIds.length > 0 ? notifyUserIds : undefined,
         notify_role_ids: notifyRoleIds.length > 0 ? notifyRoleIds : undefined,
       },

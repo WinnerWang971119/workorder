@@ -56,6 +56,11 @@ export function createWorkOrderEmbed(
     embed.addFields({ name: 'Assigned To', value: assigneeName, inline: true });
   }
 
+  // Show CAD link if present
+  if (workOrder.cad_link) {
+    embed.addFields({ name: 'CAD Link', value: `[Open CAD](${workOrder.cad_link})` });
+  }
+
   // Show cancelled state
   if (workOrder.status === WorkOrderStatus.CANCELLED) {
     embed.addFields({ name: 'Cancelled', value: 'This work order has been cancelled.' });

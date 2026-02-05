@@ -309,6 +309,7 @@ export async function updateWorkOrderAction(
     description?: string
     priority?: string
     subsystem_id?: string
+    cad_link?: string
   }
 ): Promise<ActionResult> {
   const { isAdmin, userId, supabase } = await checkAdmin()
@@ -333,6 +334,7 @@ export async function updateWorkOrderAction(
   if (updates.description !== undefined) updateData.description = updates.description
   if (updates.priority !== undefined) updateData.priority = updates.priority
   if (updates.subsystem_id !== undefined) updateData.subsystem_id = updates.subsystem_id
+  if (updates.cad_link !== undefined) updateData.cad_link = updates.cad_link
 
   if (Object.keys(updateData).length === 0) {
     return { success: false, error: 'No changes provided' }
@@ -361,6 +363,7 @@ export async function createWorkOrderAction(data: {
   description?: string
   subsystem_id: string
   priority?: string
+  cad_link?: string
   notify_user_ids?: string[]
   notify_role_ids?: string[]
 }): Promise<ActionResult & { workOrderId?: string }> {
@@ -376,6 +379,9 @@ export async function createWorkOrderAction(data: {
     priority: data.priority || 'MEDIUM',
     created_by_user_id: meta.userId,
     discord_guild_id: meta.guildId,
+  }
+  if (data.cad_link) {
+    insertData.cad_link = data.cad_link
   }
   if (data.notify_user_ids && data.notify_user_ids.length > 0) {
     insertData.notify_user_ids = data.notify_user_ids
@@ -436,6 +442,8 @@ export async function createWorkOrderAction(data: {
             { name: 'Priority', value: priorityLabel, inline: true },
             { name: 'Subsystem', value: `${subsystemEmoji} ${subsystemLabel}`, inline: true },
             { name: 'Created By', value: creatorName, inline: true },
+            // Include CAD link field if provided
+            ...(data.cad_link ? [{ name: 'CAD Link', value: `[Open CAD](${data.cad_link})`, inline: false }] : []),
           ],
           footer: { text: `ID: ${wo.id}` },
           timestamp: wo.created_at,

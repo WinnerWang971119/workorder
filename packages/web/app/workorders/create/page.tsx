@@ -22,8 +22,9 @@ export default function CreateWorkOrderPage() {
   const [description, setDescription] = useState('')
   const [subsystemId, setSubsystemId] = useState('')
   const [priority, setPriority] = useState('MEDIUM')
-  const [notifyUsersRaw, setNotifyUsersRaw] = useState('')
-  const [notifyRolesRaw, setNotifyRolesRaw] = useState('')
+  const [cadLink, setCadLink] = useState('')
+  const [notifyUserRaw, setNotifyUserRaw] = useState('')
+  const [notifyRoleRaw, setNotifyRoleRaw] = useState('')
 
   const loadSubsystems = useCallback(async () => {
     try {
@@ -62,28 +63,29 @@ export default function CreateWorkOrderPage() {
   }, [loadSubsystems])
 
   /**
-   * Parse Discord user IDs from raw mention text.
-   * Accepts formats: <@123>, <@!123>, or plain numeric IDs separated by spaces/commas.
+   * Parse a single Discord user ID from raw text.
+   * Accepts formats: <@123>, <@!123>, or a plain numeric ID.
    */
-  function parseUserIds(raw: string): string[] {
-    if (!raw.trim()) return []
-    const mentionPattern = /<@!?(\d+)>/g
-    const mentions = Array.from(raw.matchAll(mentionPattern)).map((m) => m[1])
-    if (mentions.length > 0) return mentions
-    // Fall back to plain numeric IDs
-    return raw.split(/[\s,]+/).filter((s) => /^\d+$/.test(s))
+  function parseUserId(raw: string): string | null {
+    const trimmed = raw.trim()
+    if (!trimmed) return null
+    const mentionMatch = trimmed.match(/<@!?(\d+)>/)
+    if (mentionMatch) return mentionMatch[1]
+    if (/^\d+$/.test(trimmed)) return trimmed
+    return null
   }
 
   /**
-   * Parse Discord role IDs from raw mention text.
-   * Accepts formats: <@&123> or plain numeric IDs separated by spaces/commas.
+   * Parse a single Discord role ID from raw text.
+   * Accepts formats: <@&123> or a plain numeric ID.
    */
-  function parseRoleIds(raw: string): string[] {
-    if (!raw.trim()) return []
-    const mentionPattern = /<@&(\d+)>/g
-    const mentions = Array.from(raw.matchAll(mentionPattern)).map((m) => m[1])
-    if (mentions.length > 0) return mentions
-    return raw.split(/[\s,]+/).filter((s) => /^\d+$/.test(s))
+  function parseRoleId(raw: string): string | null {
+    const trimmed = raw.trim()
+    if (!trimmed) return null
+    const mentionMatch = trimmed.match(/<@&(\d+)>/)
+    if (mentionMatch) return mentionMatch[1]
+    if (/^\d+$/.test(trimmed)) return trimmed
+    return null
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -101,16 +103,17 @@ export default function CreateWorkOrderPage() {
 
     setSubmitting(true)
     try {
-      const notifyUserIds = parseUserIds(notifyUsersRaw)
-      const notifyRoleIds = parseRoleIds(notifyRolesRaw)
+      const notifyUserId = parseUserId(notifyUserRaw)
+      const notifyRoleId = parseRoleId(notifyRoleRaw)
 
       const result = await createWorkOrderAction({
         title: title.trim(),
         description: description.trim() || undefined,
         subsystem_id: subsystemId,
         priority,
-        notify_user_ids: notifyUserIds.length > 0 ? notifyUserIds : undefined,
-        notify_role_ids: notifyRoleIds.length > 0 ? notifyRoleIds : undefined,
+        cad_link: cadLink.trim() || undefined,
+        notify_user_ids: notifyUserId ? [notifyUserId] : undefined,
+        notify_role_ids: notifyRoleId ? [notifyRoleId] : undefined,
       })
 
       if (result.success && result.workOrderId) {
@@ -225,37 +228,54 @@ export default function CreateWorkOrderPage() {
             </div>
           </div>
 
+          {/* CAD Link */}
+          <div className="border border-border rounded-lg p-6 bg-card space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-muted-foreground mb-1">CAD Link</label>
+              <input
+                type="url"
+                value={cadLink}
+                onChange={(e) => setCadLink(e.target.value)}
+                placeholder="https://cad.onshape.com/... (optional)"
+                className="w-full px-3 py-2 border border-input rounded-md bg-background text-foreground focus:ring-2 focus:ring-ring focus:border-transparent"
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                Link to a CAD file (Onshape, Fusion 360, etc.)
+              </p>
+            </div>
+          </div>
+
           {/* Notifications */}
           <div className="border border-border rounded-lg p-6 bg-card space-y-4">
             <h2 className="text-sm font-medium text-muted-foreground">Notifications (optional)</h2>
             <div>
               <label className="block text-sm font-medium text-muted-foreground mb-1">
-                User IDs to notify
+                User ID to notify
               </label>
               <input
                 type="text"
-                value={notifyUsersRaw}
-                onChange={(e) => setNotifyUsersRaw(e.target.value)}
-                placeholder="Discord user IDs separated by spaces (e.g. 123456789 987654321)"
+                value={notifyUserRaw}
+                onChange={(e) => setNotifyUserRaw(e.target.value)}
+                placeholder="Discord user ID (e.g. 123456789)"
                 className="w-full px-3 py-2 border border-input rounded-md bg-background text-foreground focus:ring-2 focus:ring-ring focus:border-transparent"
               />
               <p className="text-xs text-muted-foreground mt-1">
-                Enter Discord user IDs. These users will be mentioned in the Discord channel.
+                Enter a Discord user ID. This user will be mentioned in the Discord channel.
               </p>
             </div>
             <div>
               <label className="block text-sm font-medium text-muted-foreground mb-1">
-                Role IDs to notify
+                Role ID to notify
               </label>
               <input
                 type="text"
-                value={notifyRolesRaw}
-                onChange={(e) => setNotifyRolesRaw(e.target.value)}
-                placeholder="Discord role IDs separated by spaces (e.g. 111222333)"
+                value={notifyRoleRaw}
+                onChange={(e) => setNotifyRoleRaw(e.target.value)}
+                placeholder="Discord role ID (e.g. 111222333)"
                 className="w-full px-3 py-2 border border-input rounded-md bg-background text-foreground focus:ring-2 focus:ring-ring focus:border-transparent"
               />
               <p className="text-xs text-muted-foreground mt-1">
-                Enter Discord role IDs. These roles will be mentioned in the Discord channel.
+                Enter a Discord role ID. This role will be mentioned in the Discord channel.
               </p>
             </div>
           </div>

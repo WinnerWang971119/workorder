@@ -21,11 +21,18 @@ import Link from 'next/link'
 const PAGE_SIZE = 25
 
 type FilterStatus = 'OPEN' | 'CANCELLED' | 'DONE'
+type SortBy = 'date' | 'priority' | 'subsystem'
 
 const FILTER_TABS: { label: string; value: FilterStatus }[] = [
   { label: 'Open', value: 'OPEN' },
   { label: 'Cancelled', value: 'CANCELLED' },
   { label: 'Done', value: 'DONE' },
+]
+
+const SORT_OPTIONS: { label: string; value: SortBy }[] = [
+  { label: 'Date (Newest)', value: 'date' },
+  { label: 'Priority (Highest)', value: 'priority' },
+  { label: 'Subsystem', value: 'subsystem' },
 ]
 
 export default function WorkOrdersPage() {
@@ -37,6 +44,7 @@ export default function WorkOrdersPage() {
   const [page, setPage] = useState(0)
   const [hasMore, setHasMore] = useState(false)
   const [filter, setFilter] = useState<FilterStatus>('OPEN')
+  const [sortBy, setSortBy] = useState<SortBy>('date')
 
   const loadData = useCallback(async () => {
     try {
@@ -50,13 +58,23 @@ export default function WorkOrdersPage() {
       const from = page * PAGE_SIZE
       const to = from + PAGE_SIZE
 
-      const { data: orders, error } = await supabase
+      // Build query with dynamic sort
+      let query = supabase
         .from('work_orders')
         .select('*, subsystem:subsystems(*)')
         .eq('status', filter)
         .eq('is_deleted', false)
-        .order('created_at', { ascending: false })
-        .range(from, to)
+
+      // Apply sort based on user selection
+      if (sortBy === 'priority') {
+        query = query.order('priority_sort', { ascending: true })
+      } else if (sortBy === 'subsystem') {
+        query = query.order('sort_order', { referencedTable: 'subsystems', ascending: true })
+      } else {
+        query = query.order('created_at', { ascending: false })
+      }
+
+      const { data: orders, error } = await query.range(from, to)
 
       if (error) {
         console.error('Error loading work orders:', error)
@@ -95,7 +113,7 @@ export default function WorkOrdersPage() {
     } finally {
       setLoading(false)
     }
-  }, [supabase, router, page, filter])
+  }, [supabase, router, page, filter, sortBy])
 
   useEffect(() => {
     loadData()
@@ -108,6 +126,12 @@ export default function WorkOrdersPage() {
 
   const handleFilterChange = (newFilter: FilterStatus) => {
     setFilter(newFilter)
+    setPage(0)
+    setLoading(true)
+  }
+
+  const handleSortChange = (newSort: SortBy) => {
+    setSortBy(newSort)
     setPage(0)
     setLoading(true)
   }
@@ -163,21 +187,35 @@ export default function WorkOrdersPage() {
       </header>
 
       <main className="p-8">
-        {/* Filter tabs */}
-        <div className="flex gap-1 mb-6 border-b border-border">
-          {FILTER_TABS.map((tab) => (
-            <button
-              key={tab.value}
-              onClick={() => handleFilterChange(tab.value)}
-              className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
-                filter === tab.value
-                  ? 'border-foreground text-foreground'
-                  : 'border-transparent text-muted-foreground hover:text-foreground hover:border-muted-foreground'
-              }`}
+        {/* Filter tabs + sort dropdown */}
+        <div className="flex items-center justify-between mb-6 border-b border-border">
+          <div className="flex gap-1">
+            {FILTER_TABS.map((tab) => (
+              <button
+                key={tab.value}
+                onClick={() => handleFilterChange(tab.value)}
+                className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                  filter === tab.value
+                    ? 'border-foreground text-foreground'
+                    : 'border-transparent text-muted-foreground hover:text-foreground hover:border-muted-foreground'
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+          <div className="flex items-center gap-2 pb-2">
+            <label className="text-sm text-muted-foreground">Sort by:</label>
+            <select
+              value={sortBy}
+              onChange={(e) => handleSortChange(e.target.value as SortBy)}
+              className="px-2 py-1 text-sm border border-input rounded-md bg-background text-foreground focus:ring-2 focus:ring-ring"
             >
-              {tab.label}
-            </button>
-          ))}
+              {SORT_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
+              ))}
+            </select>
+          </div>
         </div>
 
         {workOrders.length === 0 ? (
