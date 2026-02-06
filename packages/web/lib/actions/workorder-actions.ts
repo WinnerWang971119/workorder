@@ -512,3 +512,116 @@ export async function createWorkOrderAction(data: {
 
   return { success: true, workOrderId: wo.id }
 }
+
+/**
+ * Bulk soft-delete work orders by status. Admin only.
+ * Sets is_deleted = true and cleared_at = NOW() so the pg_cron job
+ * will hard-delete them after 1 day if not recovered.
+ */
+export async function clearWorkOrdersAction(
+  statuses: string[]
+): Promise<ActionResult & { count?: number }> {
+  const { isAdmin, userId, guildId, supabase } = await checkAdmin()
+  if (!userId) return { success: false, error: 'Not authenticated' }
+  if (!isAdmin) return { success: false, error: 'Admin permission required' }
+  if (!guildId) return { success: false, error: 'No guild ID found' }
+  if (statuses.length === 0) return { success: false, error: 'Select at least one status' }
+
+  const { data, error: updateErr } = await supabase
+    .from('work_orders')
+    .update({ is_deleted: true, cleared_at: new Date().toISOString() })
+    .eq('discord_guild_id', guildId)
+    .eq('is_deleted', false)
+    .in('status', statuses)
+    .select('id')
+
+  if (updateErr) return { success: false, error: 'Failed to clear work orders' }
+
+  const count = data?.length ?? 0
+
+  if (count > 0) {
+    await supabase.from('audit_logs').insert({
+      guild_id: guildId,
+      work_order_id: data![0].id,
+      actor_user_id: userId,
+      action: 'CLEAR',
+      meta: { statuses, count },
+    })
+  }
+
+  return { success: true, count }
+}
+
+/**
+ * Recover all bulk-cleared work orders. Admin only.
+ * Restores is_deleted = false and clears the cleared_at timestamp.
+ */
+export async function recoverWorkOrdersAction(): Promise<ActionResult & { count?: number }> {
+  const { isAdmin, userId, guildId, supabase } = await checkAdmin()
+  if (!userId) return { success: false, error: 'Not authenticated' }
+  if (!isAdmin) return { success: false, error: 'Admin permission required' }
+  if (!guildId) return { success: false, error: 'No guild ID found' }
+
+  const { data, error: updateErr } = await supabase
+    .from('work_orders')
+    .update({ is_deleted: false, cleared_at: null })
+    .eq('discord_guild_id', guildId)
+    .eq('is_deleted', true)
+    .not('cleared_at', 'is', null)
+    .select('id')
+
+  if (updateErr) return { success: false, error: 'Failed to recover work orders' }
+
+  const count = data?.length ?? 0
+
+  if (count > 0) {
+    await supabase.from('audit_logs').insert({
+      guild_id: guildId,
+      work_order_id: data![0].id,
+      actor_user_id: userId,
+      action: 'RECOVER',
+      meta: { count },
+    })
+  }
+
+  return { success: true, count }
+}
+
+/**
+ * Check if there are pending bulk-cleared work orders awaiting hard-delete.
+ * Returns the count and the earliest cleared_at timestamp.
+ */
+export async function getClearStatusAction(): Promise<{
+  hasPending: boolean
+  count: number
+  clearedAt: string | null
+}> {
+  const { isAdmin, guildId, supabase } = await checkAdmin()
+  if (!isAdmin || !guildId) return { hasPending: false, count: 0, clearedAt: null }
+
+  const { data, error } = await supabase
+    .from('work_orders')
+    .select('cleared_at')
+    .eq('discord_guild_id', guildId)
+    .eq('is_deleted', true)
+    .not('cleared_at', 'is', null)
+    .order('cleared_at', { ascending: true })
+    .limit(1)
+
+  if (error || !data || data.length === 0) {
+    return { hasPending: false, count: 0, clearedAt: null }
+  }
+
+  const { count } = await supabase
+    .from('work_orders')
+    .select('*', { count: 'exact', head: true })
+    .eq('discord_guild_id', guildId)
+    .eq('is_deleted', true)
+    .not('cleared_at', 'is', null)
+
+  return {
+    hasPending: true,
+    count: count ?? 0,
+    clearedAt: data[0].cleared_at,
+  }
+}
