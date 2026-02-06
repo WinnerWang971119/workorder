@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { ThemeToggle } from '@/components/theme-toggle'
+import { clearWorkOrdersAction, recoverWorkOrdersAction, getClearStatusAction } from '@/lib/actions/workorder-actions'
 
 interface Subsystem {
   id: string
@@ -34,6 +35,18 @@ export default function AdminPage() {
   const [formData, setFormData] = useState({ name: '', display_name: '', emoji: '', color: '#808080' })
   const [subsystemSaving, setSubsystemSaving] = useState(false)
 
+  // Danger zone state
+  const [clearStatuses, setClearStatuses] = useState<string[]>([])
+  const [clearing, setClearing] = useState(false)
+  const [recovering, setRecovering] = useState(false)
+  const [confirmText, setConfirmText] = useState('')
+  const [showConfirm, setShowConfirm] = useState(false)
+  const [pendingClear, setPendingClear] = useState<{
+    hasPending: boolean
+    count: number
+    clearedAt: string | null
+  }>({ hasPending: false, count: 0, clearedAt: null })
+
   const loadSubsystems = useCallback(async (gid: string) => {
     if (!gid) return
     const { data } = await supabase
@@ -43,6 +56,11 @@ export default function AdminPage() {
       .order('sort_order', { ascending: true })
     setSubsystems(data || [])
   }, [supabase])
+
+  const loadClearStatus = useCallback(async () => {
+    const status = await getClearStatusAction()
+    setPendingClear(status)
+  }, [])
 
   useEffect(() => {
     async function loadData() {
@@ -66,6 +84,7 @@ export default function AdminPage() {
           setMemberRoles((config.member_role_ids || []).join(', '))
           setChannelId(config.work_orders_channel_id || '')
           await loadSubsystems(config.guild_id)
+          await loadClearStatus()
         }
       } catch (error) {
         console.error('Error:', error)
@@ -75,7 +94,7 @@ export default function AdminPage() {
     }
 
     loadData()
-  }, [supabase, router, loadSubsystems])
+  }, [supabase, router, loadSubsystems, loadClearStatus])
 
   const handleSave = async () => {
     if (!guildId.trim()) {
@@ -234,6 +253,60 @@ export default function AdminPage() {
     ])
 
     await loadSubsystems(guildId)
+  }
+
+  const handleClear = async () => {
+    if (confirmText !== 'CLEAR') return
+    setClearing(true)
+    setMessage(null)
+    try {
+      const result = await clearWorkOrdersAction(clearStatuses)
+      if (result.success) {
+        setMessage({ text: `${result.count} work order(s) cleared. You have 24 hours to recover.`, type: 'success' })
+        setShowConfirm(false)
+        setConfirmText('')
+        setClearStatuses([])
+        await loadClearStatus()
+      } else {
+        setMessage({ text: result.error || 'Failed to clear', type: 'error' })
+      }
+    } catch {
+      setMessage({ text: 'An unexpected error occurred.', type: 'error' })
+    } finally {
+      setClearing(false)
+    }
+  }
+
+  const handleRecover = async () => {
+    setRecovering(true)
+    setMessage(null)
+    try {
+      const result = await recoverWorkOrdersAction()
+      if (result.success) {
+        setMessage({ text: `${result.count} work order(s) recovered.`, type: 'success' })
+        await loadClearStatus()
+      } else {
+        setMessage({ text: result.error || 'Failed to recover', type: 'error' })
+      }
+    } catch {
+      setMessage({ text: 'An unexpected error occurred.', type: 'error' })
+    } finally {
+      setRecovering(false)
+    }
+  }
+
+  const toggleStatus = (status: string) => {
+    setClearStatuses((prev) =>
+      prev.includes(status) ? prev.filter((s) => s !== status) : [...prev, status]
+    )
+  }
+
+  const getHoursRemaining = () => {
+    if (!pendingClear.clearedAt) return 0
+    const clearedTime = new Date(pendingClear.clearedAt).getTime()
+    const deadline = clearedTime + 24 * 60 * 60 * 1000
+    const remaining = Math.max(0, deadline - Date.now())
+    return Math.ceil(remaining / (60 * 60 * 1000))
   }
 
   if (loading) {
@@ -494,6 +567,97 @@ export default function AdminPage() {
                     {subsystemSaving ? 'Saving...' : editingId ? 'Update' : 'Create'}
                   </Button>
                 </div>
+              </div>
+            )}
+          </div>
+
+          {/* ---- Danger Zone ---- */}
+          <div className="border-2 border-red-500/50 rounded-lg p-6 space-y-6 bg-card">
+            <div>
+              <h2 className="text-lg font-semibold text-red-600 dark:text-red-400">Danger Zone</h2>
+              <p className="text-sm text-muted-foreground mt-1">
+                Irreversible actions. Cleared work orders are permanently deleted after 24 hours.
+              </p>
+            </div>
+
+            {pendingClear.hasPending ? (
+              <div className="space-y-4">
+                <div className="p-4 rounded-lg bg-yellow-500/10 border border-yellow-500/20">
+                  <p className="text-sm font-medium text-yellow-700 dark:text-yellow-400">
+                    {pendingClear.count} work order(s) pending deletion.
+                    Hard delete in {getHoursRemaining()} hour(s).
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Cleared on {new Date(pendingClear.clearedAt!).toLocaleString()}
+                  </p>
+                </div>
+                <Button
+                  onClick={handleRecover}
+                  disabled={recovering}
+                  className="bg-green-600 hover:bg-green-700 text-white"
+                >
+                  {recovering ? 'Recovering...' : 'Recover Work Orders'}
+                </Button>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-muted-foreground mb-2">
+                    Select statuses to clear
+                  </label>
+                  <div className="flex gap-4">
+                    {['OPEN', 'DONE', 'CANCELLED'].map((status) => (
+                      <label key={status} className="flex items-center gap-2 text-sm text-foreground">
+                        <input
+                          type="checkbox"
+                          checked={clearStatuses.includes(status)}
+                          onChange={() => toggleStatus(status)}
+                          className="rounded border-input"
+                        />
+                        {status}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
+                {!showConfirm ? (
+                  <Button
+                    onClick={() => setShowConfirm(true)}
+                    disabled={clearStatuses.length === 0}
+                    variant="destructive"
+                  >
+                    Clear Work Orders
+                  </Button>
+                ) : (
+                  <div className="space-y-3 p-4 rounded-lg bg-red-500/5 border border-red-500/20">
+                    <p className="text-sm text-red-700 dark:text-red-400">
+                      Type <span className="font-mono font-bold">CLEAR</span> to confirm.
+                      This will soft-delete all {clearStatuses.join(', ')} work orders.
+                    </p>
+                    <input
+                      type="text"
+                      value={confirmText}
+                      onChange={(e) => setConfirmText(e.target.value)}
+                      placeholder="Type CLEAR"
+                      className="w-full px-3 py-2 border border-red-500/30 rounded-lg text-sm bg-background text-foreground"
+                    />
+                    <div className="flex gap-2">
+                      <Button
+                        onClick={handleClear}
+                        disabled={confirmText !== 'CLEAR' || clearing}
+                        variant="destructive"
+                      >
+                        {clearing ? 'Clearing...' : 'Confirm Clear'}
+                      </Button>
+                      <Button
+                        onClick={() => { setShowConfirm(false); setConfirmText('') }}
+                        variant="outline"
+                      >
+                        Cancel
+                      </Button>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>
