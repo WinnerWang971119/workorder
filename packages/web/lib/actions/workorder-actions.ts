@@ -540,13 +540,7 @@ export async function clearWorkOrdersAction(
   const count = data?.length ?? 0
 
   if (count > 0) {
-    await supabase.from('audit_logs').insert({
-      guild_id: guildId,
-      work_order_id: data![0].id,
-      actor_user_id: userId,
-      action: 'CLEAR',
-      meta: { statuses, count },
-    })
+    await logAudit(supabase, guildId, data![0].id, userId, AuditAction.CLEAR, { statuses, count })
   }
 
   return { success: true, count }
@@ -575,13 +569,7 @@ export async function recoverWorkOrdersAction(): Promise<ActionResult & { count?
   const count = data?.length ?? 0
 
   if (count > 0) {
-    await supabase.from('audit_logs').insert({
-      guild_id: guildId,
-      work_order_id: data![0].id,
-      actor_user_id: userId,
-      action: 'RECOVER',
-      meta: { count },
-    })
+    await logAudit(supabase, guildId, data![0].id, userId, AuditAction.RECOVER, { count })
   }
 
   return { success: true, count }
@@ -599,9 +587,9 @@ export async function getClearStatusAction(): Promise<{
   const { isAdmin, guildId, supabase } = await checkAdmin()
   if (!isAdmin || !guildId) return { hasPending: false, count: 0, clearedAt: null }
 
-  const { data, error } = await supabase
+  const { data, count, error } = await supabase
     .from('work_orders')
-    .select('cleared_at')
+    .select('cleared_at', { count: 'exact' })
     .eq('discord_guild_id', guildId)
     .eq('is_deleted', true)
     .not('cleared_at', 'is', null)
@@ -611,13 +599,6 @@ export async function getClearStatusAction(): Promise<{
   if (error || !data || data.length === 0) {
     return { hasPending: false, count: 0, clearedAt: null }
   }
-
-  const { count } = await supabase
-    .from('work_orders')
-    .select('*', { count: 'exact', head: true })
-    .eq('discord_guild_id', guildId)
-    .eq('is_deleted', true)
-    .not('cleared_at', 'is', null)
 
   return {
     hasPending: true,
