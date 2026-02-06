@@ -87,4 +87,6 @@ export const ACTION_LABELS: Record<AuditAction, string> = {
   [AuditAction.UNCLAIM]: 'Unclaimed',
   [AuditAction.STATUS_CHANGE]: 'Status Changed',
   [AuditAction.CANCEL]: 'Cancelled',
+  [AuditAction.CLEAR]: 'Cleared',
+  [AuditAction.RECOVER]: 'Recovered',
 };

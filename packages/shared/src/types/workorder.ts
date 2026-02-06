@@ -31,6 +31,8 @@ export enum AuditAction {
   UNCLAIM = 'UNCLAIM',
   STATUS_CHANGE = 'STATUS_CHANGE',
   CANCEL = 'CANCEL',
+  CLEAR = 'CLEAR',
+  RECOVER = 'RECOVER',
 }
 
 /**
