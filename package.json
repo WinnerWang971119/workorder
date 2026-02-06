@@ -2,6 +2,7 @@
   "name": "workorder",
   "version": "0.1.0",
   "private": true,
+  "packageManager": "pnpm@10.28.2",
   "description": "FRC Work Order System - Discord bot + web dashboard",
   "scripts": {
     "dev": "pnpm -r --parallel dev",
