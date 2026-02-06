@@ -58,23 +58,37 @@ export default function WorkOrdersPage() {
       const from = page * PAGE_SIZE
       const to = from + PAGE_SIZE
 
-      // Build query with dynamic sort
-      let query = supabase
-        .from('work_orders')
-        .select('*, subsystem:subsystems(*)')
-        .eq('status', filter)
-        .eq('is_deleted', false)
+      // Fetch work orders -- subsystem sort needs a dedicated RPC because
+      // PostgREST's referencedTable option only orders the embedded resource,
+      // not the parent rows.  The RPC does a real JOIN + ORDER BY.
+      let orders: WorkOrder[] | null = null
+      let error: { message: string } | null = null
 
-      // Apply sort based on user selection
-      if (sortBy === 'priority') {
-        query = query.order('priority_sort', { ascending: true })
-      } else if (sortBy === 'subsystem') {
-        query = query.order('sort_order', { referencedTable: 'subsystems', ascending: true })
+      if (sortBy === 'subsystem') {
+        const res = await supabase.rpc('get_work_orders_by_subsystem', {
+          p_status: filter,
+          p_offset: from,
+          p_limit:  to - from + 1,
+        })
+        orders = res.data ?? []
+        error  = res.error
       } else {
-        query = query.order('created_at', { ascending: false })
-      }
+        let query = supabase
+          .from('work_orders')
+          .select('*, subsystem:subsystems(*)')
+          .eq('status', filter)
+          .eq('is_deleted', false)
 
-      const { data: orders, error } = await query.range(from, to)
+        if (sortBy === 'priority') {
+          query = query.order('priority_sort', { ascending: true })
+        } else {
+          query = query.order('created_at', { ascending: false })
+        }
+
+        const res = await query.range(from, to)
+        orders = res.data
+        error  = res.error
+      }
 
       if (error) {
         console.error('Error loading work orders:', error)

@@ -14,7 +14,8 @@
       "Bash(git push:*)",
       "Bash(pnpm bot:build:*)",
       "Bash(dir:*)",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "Bash(git log:*)"
     ]
   }
 }
