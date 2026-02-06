@@ -94,6 +94,7 @@ export interface WorkOrder {
   discord_thread_id: string | null;
   discord_guild_id: string;
   is_deleted: boolean;
+  cleared_at: string | null;
   cad_link: string | null;
   notify_user_ids: string[];
   notify_role_ids: string[];
