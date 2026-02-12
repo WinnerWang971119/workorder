@@ -13,6 +13,7 @@ import { handleUnclaimButton } from './buttons/unclaim-button.js';
 import { handleMarkDoneButton } from './buttons/mark-done-button.js';
 import { handleCancelButton } from './buttons/cancel-button.js';
 import * as subsystemService from './services/subsystem.service.js';
+import { supabase } from './supabase.js';
 import { ChatInputCommandInteraction, ButtonInteraction, AutocompleteInteraction } from 'discord.js';
 
 /**
@@ -28,6 +29,11 @@ async function handleSubsystemAutocomplete(interaction: AutocompleteInteraction)
   }
 
   const subsystems = await subsystemService.getSubsystemsForGuildCached(guildId);
+
+  if (subsystems.length === 0) {
+    console.warn(`[autocomplete] No subsystems found for guild ${guildId}. Run /admin or re-invite the bot to seed defaults.`);
+  }
+
   const focusedValue = interaction.options.getFocused().toLowerCase();
 
   const filtered = subsystems
@@ -65,6 +71,31 @@ async function main(): Promise<void> {
 
       // Register slash commands
       await registerCommands(client);
+    });
+
+    // When the bot joins a new guild, create a default config and seed subsystems
+    client.on('guildCreate', async (guild) => {
+      console.log(`Joined new guild: ${guild.name} (${guild.id})`);
+
+      try {
+        // Upsert a minimal guild_configs row so the guild is recognised
+        const { error } = await supabase
+          .from('guild_configs')
+          .upsert(
+            { guild_id: guild.id },
+            { onConflict: 'guild_id', ignoreDuplicates: true }
+          );
+
+        if (error) {
+          console.error(`Failed to upsert guild config for ${guild.id}:`, error);
+        }
+
+        // Seed the four default subsystems (skips if they already exist)
+        await subsystemService.seedDefaultSubsystems(guild.id);
+        console.log(`Default subsystems seeded for guild ${guild.id}`);
+      } catch (error) {
+        console.error(`Error during guildCreate setup for ${guild.id}:`, error);
+      }
     });
 
     // Handle all interaction types (commands, buttons, autocomplete)

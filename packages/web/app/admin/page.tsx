@@ -17,10 +17,18 @@ interface Subsystem {
   sort_order: number
 }
 
+interface GuildConfig {
+  guild_id: string
+  admin_role_ids: string[] | null
+  member_role_ids: string[] | null
+  work_orders_channel_id: string | null
+}
+
 export default function AdminPage() {
   const router = useRouter()
   const supabase = createClient()
   const [loading, setLoading] = useState(true)
+  const [guildConfigs, setGuildConfigs] = useState<GuildConfig[]>([])
   const [guildId, setGuildId] = useState('')
   const [adminRoles, setAdminRoles] = useState('')
   const [memberRoles, setMemberRoles] = useState('')
@@ -62,6 +70,18 @@ export default function AdminPage() {
     setPendingClear(status)
   }, [])
 
+  // Populate form fields from a guild config and load its subsystems
+  const selectGuild = useCallback(async (config: GuildConfig) => {
+    setGuildId(config.guild_id)
+    setAdminRoles((config.admin_role_ids || []).join(', '))
+    setMemberRoles((config.member_role_ids || []).join(', '))
+    setChannelId(config.work_orders_channel_id || '')
+    setShowForm(false)
+    setEditingId(null)
+    setMessage(null)
+    await loadSubsystems(config.guild_id)
+  }, [loadSubsystems])
+
   useEffect(() => {
     async function loadData() {
       try {
@@ -71,13 +91,13 @@ export default function AdminPage() {
           return
         }
 
-        // Load existing guild configs (show the first one for now)
+        // Load all guild configs so the user can switch between guilds
         const { data: configs, error } = await supabase
           .from('guild_configs')
           .select('*')
-          .limit(1)
 
         if (!error && configs && configs.length > 0) {
+          setGuildConfigs(configs)
           const config = configs[0]
           setGuildId(config.guild_id)
           setAdminRoles((config.admin_role_ids || []).join(', '))
@@ -126,6 +146,20 @@ export default function AdminPage() {
         setMessage({ text: 'Failed to save configuration.', type: 'error' })
       } else {
         setMessage({ text: 'Configuration saved successfully.', type: 'success' })
+        // Update dropdown list: add new guild or update existing entry
+        const savedConfig: GuildConfig = {
+          guild_id: guildId.trim(),
+          admin_role_ids: adminRoleIds,
+          member_role_ids: memberRoleIds,
+          work_orders_channel_id: channelId.trim() || null,
+        }
+        setGuildConfigs((prev) => {
+          const exists = prev.some((c) => c.guild_id === savedConfig.guild_id)
+          if (exists) {
+            return prev.map((c) => c.guild_id === savedConfig.guild_id ? savedConfig : c)
+          }
+          return [...prev, savedConfig]
+        })
         await loadSubsystems(guildId.trim())
       }
     } catch (error) {
@@ -355,6 +389,42 @@ export default function AdminPage() {
           {/* ---- Guild Configuration ---- */}
           <div className="border border-border rounded-lg p-6 space-y-6 bg-card">
             <h2 className="text-lg font-semibold text-foreground">Guild Configuration</h2>
+
+            {/* Guild selector dropdown -- switch between existing configs or add new */}
+            {guildConfigs.length > 0 && (
+              <div>
+                <label className="block text-sm font-medium text-muted-foreground mb-2">
+                  Select Guild
+                </label>
+                <select
+                  value={guildId}
+                  onChange={(e) => {
+                    const selected = e.target.value
+                    if (selected === '__new__') {
+                      setGuildId('')
+                      setAdminRoles('')
+                      setMemberRoles('')
+                      setChannelId('')
+                      setSubsystems([])
+                      setShowForm(false)
+                      setEditingId(null)
+                      setMessage(null)
+                    } else {
+                      const config = guildConfigs.find((c) => c.guild_id === selected)
+                      if (config) selectGuild(config)
+                    }
+                  }}
+                  className="w-full px-4 py-2 border border-input rounded-lg bg-background text-foreground focus:ring-2 focus:ring-ring focus:border-transparent"
+                >
+                  {guildConfigs.map((c) => (
+                    <option key={c.guild_id} value={c.guild_id}>
+                      {c.guild_id}
+                    </option>
+                  ))}
+                  <option value="__new__">+ Add new guild...</option>
+                </select>
+              </div>
+            )}
 
             <div>
               <label className="block text-sm font-medium text-muted-foreground mb-2">

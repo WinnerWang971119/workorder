@@ -15,7 +15,14 @@
       "Bash(pnpm bot:build:*)",
       "Bash(dir:*)",
       "Bash(git commit:*)",
-      "Bash(git log:*)"
+      "Bash(git log:*)",
+      "Bash(git diff-tree:*)",
+      "Bash(npx pnpm build:*)",
+      "WebSearch",
+      "WebFetch(domain:docs.railway.com)",
+      "WebFetch(domain:railway.com)",
+      "Bash(claude mcp:*)",
+      "Bash(node -e:*)"
     ]
   }
 }
